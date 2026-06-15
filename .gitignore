@@ -1,0 +1,86 @@
+# ─── Secrets & Environment Variables ────────────────────────────────
+.env
+.env.local
+.env.*.local
+frontend/.env.local
+frontend/.env
+
+# ─── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.log
+
+# ─── Virtual Environments ────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env.bak
+
+# ─── Node / React / Vite ────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm/
+.eslintcache
+.pnpm-store/
+
+# ─── Docker / Podman ────────────────────────────────────────────────
+.dockerignore
+
+# ─── macOS ──────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ─── IDE & Editors ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.user
+
+# ─── Celery ─────────────────────────────────────────────────────────
+celerybeat-schedule
+celerybeat.pid
+
+# ─── Redis ──────────────────────────────────────────────────────────
+dump.rdb
+
+# ─── Misc ────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.orig
