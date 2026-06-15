@@ -9,5 +9,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Default command for the API server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use Railway's dynamic PORT or fallback to 8000 for local dev
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
