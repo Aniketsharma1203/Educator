@@ -122,7 +122,8 @@ def get_system_prompt(level: str, subject: str) -> str:
     })
 
     base_prompt = subject_data["young"] if is_young else subject_data["advanced"]
-    return f"{base_prompt} The student is at the {level} level. This question is in the domain of {subject}."
+    guardrail = f"IMPORTANT RULE: If the student asks a question that is clearly unrelated to {subject} (for example, asking a science question while you are the math tutor), politely mention that the question actually belongs to another subject area, but then proceed to answer their question fully and accurately anyway."
+    return f"{base_prompt}\n\nThe student is at the {level} level. This conversation is specifically in the domain of {subject}.\n{guardrail}"
 
 @app.get("/")
 def root():
