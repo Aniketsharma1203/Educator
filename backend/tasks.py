@@ -16,7 +16,7 @@ client = AsyncOpenAI(
 async def run_inference(prompt: str, system_prompt: str) -> str:
     try:
         response = await client.chat.completions.create(
-            model="Meta-Llama-3.3-70B-Instruct",
+            model="Llama-3.3-70B-Instruct",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
