@@ -1,11 +1,4 @@
-version: '3.8'
-
 services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
   api:
     build:
       context: ./backend
@@ -14,25 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GITHUB_TOKEN=${GITHUB_TOKEN}
-    depends_on:
-      - redis
-    volumes:
-      - ./backend:/app
-
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A tasks worker --loglevel=info
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-    depends_on:
-      - redis
     volumes:
       - ./backend:/app
 
@@ -42,5 +17,5 @@ services:
       dockerfile: Containerfile
     ports:
       - "80:80"
-    depends_on:
-      - api
+    environment:
+      - VITE_API_URL=http://localhost:8000

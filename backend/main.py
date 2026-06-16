@@ -1,12 +1,10 @@
 import os
 import asyncio
-import redis as redis_client
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from tasks import process_advanced_query, run_inference
-from celery.result import AsyncResult
+from tasks import run_inference
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,29 +19,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Redis connection for stats tracking
-REDIS_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-try:
-    r = redis_client.from_url(REDIS_URL, decode_responses=True)
-except Exception:
-    r = None
+# In-memory stats tracking
+STATS = {
+    "visits": 0,
+    "questions:total": 0,
+    "questions:math": 0,
+    "questions:science": 0,
+    "questions:english": 0,
+    "questions:gk": 0,
+    "questions:other": 0,
+    "tier:school": 0,
+    "tier:highschool": 0,
+    "tier:university": 0,
+    "tier:phd": 0,
+}
 
 def track(key: str, amount: int = 1):
-    """Safely increment a Redis counter."""
-    try:
-        if r:
-            r.incr(key, amount)
-    except Exception:
-        pass
+    """Safely increment in-memory counter."""
+    if key in STATS:
+        STATS[key] += amount
 
 def get_counter(key: str) -> int:
-    try:
-        if r:
-            val = r.get(key)
-            return int(val) if val else 0
-    except Exception:
-        pass
-    return 0
+    return STATS.get(key, 0)
 
 class QueryRequest(BaseModel):
     question: str
@@ -52,7 +49,6 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     status: str
-    task_id: str = None
     answer: str = None
 
 SUBJECT_KEYS = {
@@ -104,7 +100,7 @@ def get_system_prompt(level: str, subject: str) -> str:
 
 @app.get("/")
 def root():
-    track("stats:visits")
+    track("visits")
     return {"status": "ok", "message": "OmniTutor API"}
 
 @app.post("/api/query", response_model=QueryResponse)
@@ -112,49 +108,39 @@ async def submit_query(req: QueryRequest):
     system_prompt = get_system_prompt(req.level, req.subject or "General")
 
     # Track question stats
-    track("stats:questions:total")
+    track("questions:total")
     subject_key = SUBJECT_KEYS.get((req.subject or "general").lower(), "other")
-    track(f"stats:questions:{subject_key}")
+    track(f"questions:{subject_key}")
     level_lower = req.level.lower()
     if level_lower in YOUNG_LEVELS:
-        track("stats:tier:school")
+        track("tier:school")
     elif level_lower in ["high school"]:
-        track("stats:tier:highschool")
+        track("tier:highschool")
     elif level_lower in ADVANCED_LEVELS:
-        track("stats:tier:phd")
+        track("tier:phd")
     else:
-        track("stats:tier:university")
+        track("tier:university")
 
-    if req.level.lower() in YOUNG_LEVELS:
-        answer = await run_inference(req.question, system_prompt)
-        return QueryResponse(status="completed", answer=answer)
-    else:
-        task = process_advanced_query.delay(req.question, system_prompt)
-        return QueryResponse(status="processing", task_id=task.id)
-
-@app.get("/api/status/{task_id}", response_model=QueryResponse)
-def get_task_status(task_id: str):
-    task_result = AsyncResult(task_id)
-    if task_result.ready():
-        return QueryResponse(status="completed", answer=task_result.result, task_id=task_id)
-    return QueryResponse(status="processing", task_id=task_id)
+    # All requests wait for run_inference using async/await
+    answer = await run_inference(req.question, system_prompt)
+    return QueryResponse(status="completed", answer=answer)
 
 @app.get("/api/stats")
 def get_stats():
-    track("stats:visits")
+    track("visits")
     return {
-        "visits": get_counter("stats:visits"),
+        "visits": get_counter("visits"),
         "questions": {
-            "total": get_counter("stats:questions:total"),
-            "math": get_counter("stats:questions:math"),
-            "science": get_counter("stats:questions:science"),
-            "english": get_counter("stats:questions:english"),
-            "gk": get_counter("stats:questions:gk"),
+            "total": get_counter("questions:total"),
+            "math": get_counter("questions:math"),
+            "science": get_counter("questions:science"),
+            "english": get_counter("questions:english"),
+            "gk": get_counter("questions:gk"),
         },
         "tiers": {
-            "school": get_counter("stats:tier:school"),
-            "highschool": get_counter("stats:tier:highschool"),
-            "university": get_counter("stats:tier:university"),
-            "phd": get_counter("stats:tier:phd"),
+            "school": get_counter("tier:school"),
+            "highschool": get_counter("tier:highschool"),
+            "university": get_counter("tier:university"),
+            "phd": get_counter("tier:phd"),
         }
     }

@@ -156,22 +156,8 @@ function Chat({ subject, level, onBack }) {
   const [question, setQuestion] = useState('');
   const [status, setStatus] = useState('idle');
   const [answer, setAnswer] = useState('');
-  const [taskId, setTaskId] = useState(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const pollRef = useRef(null);
   const isYoung = YOUNG_LEVELS.includes(level.level);
-
-  useEffect(() => {
-    if (taskId && status === 'processing') {
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await axios.get(`${API}/api/status/${taskId}`);
-          if (res.data.status === 'completed') { finalize(res.data.answer); clearInterval(pollRef.current); }
-        } catch { setStatus('error'); setAnswer('Error while checking status.'); clearInterval(pollRef.current); }
-      }, 3000);
-    }
-    return () => clearInterval(pollRef.current);
-  }, [taskId, status]);
 
   const finalize = (text) => {
     setAnswer(text); setStatus('completed');
@@ -181,13 +167,13 @@ function Chat({ subject, level, onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim()) return;
-    setStatus('processing'); setAnswer(''); setTaskId(null);
+    setStatus('processing'); setAnswer('');
     window.speechSynthesis?.cancel(); setIsSpeaking(false);
     try {
       const res = await axios.post(`${API}/api/query`, { question, level: level.level, subject: subject.name });
       if (res.data.status === 'completed') finalize(res.data.answer);
-      else if (res.data.task_id) setTaskId(res.data.task_id);
-    } catch { setStatus('error'); setAnswer('Failed to reach the backend. Make sure Docker containers are running.'); }
+      else { setStatus('error'); setAnswer('Unexpected response from backend.'); }
+    } catch { setStatus('error'); setAnswer('Failed to reach the backend. Make sure the server is running.'); }
   };
 
   const handleSpeak = () => {

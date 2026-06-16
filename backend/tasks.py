@@ -1,17 +1,9 @@
 import os
 import asyncio
-from celery import Celery
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# Initialize Celery
-celery_app = Celery(
-    "tasks",
-    broker=os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
-    backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
-)
 
 # Initialize OpenAI Async Client with GitHub Models API
 github_token = os.environ.get("GITHUB_TOKEN")
@@ -35,8 +27,3 @@ async def run_inference(prompt: str, system_prompt: str) -> str:
         return response.choices[0].message.content
     except Exception as e:
         return f"Error during inference: {str(e)}"
-
-@celery_app.task(name="tasks.process_advanced_query")
-def process_advanced_query(prompt: str, system_prompt: str):
-    # Celery tasks are synchronous by default, so we run the async inference inside an event loop
-    return asyncio.run(run_inference(prompt, system_prompt))
