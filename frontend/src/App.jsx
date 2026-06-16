@@ -624,6 +624,10 @@ export default function App() {
 
   // Routing Logic
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  useEffect(() => {
     if (!token && view !== 'stats') {
       setView('auth');
     } else if (token && view === 'auth') {
@@ -631,25 +635,44 @@ export default function App() {
     }
   }, [token, view]);
 
-  const goHome = () => { setView(token ? 'dashboard' : 'auth'); setSubject(null); setLevel(null); };
-  const pickSubject = (s) => { setSubject(s); setView('classSelector'); };
-  const pickLevel  = (l) => { setLevel(l); setView('chat'); };
-  const backToClasses = () => setView('classSelector');
-  const openStats = () => setView(v => v === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats');
-  const openAdmin = () => setView(v => v === 'admin' ? 'dashboard' : 'admin');
+  // Back button handling
+  useEffect(() => {
+    const handlePopState = (e) => {
+      if (e.state && e.state.view) {
+        setView(e.state.view);
+        setSubject(e.state.subject);
+        setLevel(e.state.level);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.history.replaceState({ view, subject, level }, '');
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (newView, newSubject = null, newLevel = null) => {
+    setView(newView);
+    setSubject(newSubject);
+    setLevel(newLevel);
+    window.history.pushState({ view: newView, subject: newSubject, level: newLevel }, '');
+  };
+
+  const goHome = () => navigate(token ? 'dashboard' : 'auth');
+  const pickSubject = (s) => navigate('classSelector', s, null);
+  const pickLevel  = (l) => navigate('chat', subject, l);
+  const backToClasses = () => navigate('classSelector', subject, null);
+  const openStats = () => navigate(view === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats', subject, level);
+  const openAdmin = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
   
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);
-    setView('dashboard');
+    navigate('dashboard');
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
-    setView('auth');
-    setSubject(null);
-    setLevel(null);
+    navigate('auth');
   };
 
   return (
