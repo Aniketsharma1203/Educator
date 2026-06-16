@@ -40,6 +40,16 @@ const TIERS = [
 
 const YOUNG_LEVELS = ['Primary (Class 1-5)', 'Middle School (Class 6-10)'];
 
+const LEVEL_NAMES = ['', 'Curious Cub 🐣', 'Explorer 🧭', 'Scholar 📚', 'Genius 💡', 'Master 🏆'];
+const LEVEL_THRESHOLDS = [0, 50, 150, 350, 700, 1200];
+const BADGE_META = {
+  first_step:    { name: 'First Step 🌱',    desc: 'Ask your first question' },
+  ten_questions: { name: 'Ten Questions 🔟',  desc: 'Ask 10 questions total' },
+  hot_streak:    { name: 'Hot Streak 🔥',     desc: 'Maintain a 3-day streak' },
+  star_student:  { name: 'Star Student 🌟',   desc: 'Reach Scholar level' },
+  multi_subject: { name: 'Big Brain 🧠',      desc: 'Ask in 3+ different subjects' },
+};
+
 /* ─── Animated Counter ──────────────────────────────────────────────── */
 function AnimatedNumber({ value, duration = 1400 }) {
   const [display, setDisplay] = useState(0);
@@ -73,8 +83,30 @@ function Stars() {
   );
 }
 
+/* ─── Badge Unlock Popup ─────────────────────────────────────────────── */
+function BadgePopup({ badges, onClose }) {
+  useEffect(() => {
+    if (badges.length === 0) return;
+    confetti({ particleCount: 300, spread: 120, origin: { y: 0.5 }, colors: ['#fbbf24','#f59e0b','#a78bfa','#22d3ee','#ec4899'] });
+    const t = setTimeout(onClose, 4000);
+    return () => clearTimeout(t);
+  }, [badges]);
+  if (badges.length === 0) return null;
+  return (
+    <div style={{ position: 'fixed', top: '80px', right: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      {badges.map(id => (
+        <div key={id} onClick={onClose} style={{ background: 'linear-gradient(135deg, #fbbf2422, #f59e0b22)', border: '1px solid #fbbf2466', borderRadius: '12px', padding: '1rem 1.5rem', backdropFilter: 'blur(12px)', cursor: 'pointer', animation: 'fadeInDown 0.4s ease' }}>
+          <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>🏅 Badge Unlocked!</div>
+          <div style={{ color: '#fbbf24', fontWeight: 600 }}>{BADGE_META[id]?.name}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{BADGE_META[id]?.desc}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Navbar ─────────────────────────────────────────────────────────── */
-function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, user }) {
+function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, user, profile }) {
   return (
     <nav className="nav">
       <div className="nav-logo" onClick={onLogoClick}>✦ OmniTutor</div>
@@ -85,7 +117,12 @@ function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, us
           {level && view === 'chat' && <><span className="sep">›</span><span>{level.name}</span></>}
         </div>
       )}
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        {profile && profile.streak_count > 0 && (
+          <div style={{ background: '#ef444422', border: '1px solid #ef444444', borderRadius: '8px', padding: '4px 10px', fontSize: '0.85rem', color: '#fca5a5', fontWeight: 600 }}>
+            🔥 {profile.streak_count}d
+          </div>
+        )}
         {user?.is_admin && (
           <button className={`stats-nav-btn ${view === 'admin' ? 'active' : ''}`} onClick={onAdmin} style={{ background: '#8b5cf633', color: '#c4b5fd' }}>
             🛡️ Admin
@@ -257,15 +294,24 @@ function ClassSelector({ subject, onSelect, onBack }) {
 }
 
 /* ─── Screen 3: Chat ─────────────────────────────────────────────────── */
-function Chat({ subject, level, token, onBack, onLogout }) {
+function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
   const [question, setQuestion] = useState('');
   const [status, setStatus] = useState('idle');
   const [history, setHistory] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [profile, setProfile] = useState(null);
+  const [showTrophies, setShowTrophies] = useState(false);
   const isYoung = YOUNG_LEVELS.includes(level.level);
   const chatEndRef = useRef(null);
 
-  // Load chat history on mount
+  const fetchProfile = async () => {
+    try {
+      const res = await axios.get(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } });
+      setProfile(res.data);
+    } catch {}
+  };
+
+  // Load chat history and profile on mount
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -278,6 +324,7 @@ function Chat({ subject, level, token, onBack, onLogout }) {
       }
     };
     fetchHistory();
+    if (isYoung) fetchProfile();
   }, [subject.name, token, onLogout]);
 
   useEffect(() => {
@@ -305,7 +352,18 @@ function Chat({ subject, level, token, onBack, onLogout }) {
       if (res.data.status === 'completed') {
         setStatus('idle');
         setHistory([...tempHistory, { role: 'assistant', content: res.data.answer, timestamp: new Date().toISOString() }]);
-        if (isYoung) confetti({ particleCount: 180, spread: 90, origin: { y: 0.55 }, colors: ['#a78bfa','#ec4899','#fbbf24','#34d399'] });
+        if (isYoung) {
+          confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#a78bfa','#ec4899','#fbbf24','#34d399'] });
+          // Update profile optimistically
+          if (res.data.xp_earned > 0) {
+            setProfile(p => p ? { ...p, xp: res.data.new_xp, level: res.data.new_level, streak_count: res.data.streak_count } : p);
+          }
+          // Surface new badges
+          if (res.data.new_badges?.length > 0) {
+            onBadgesUnlocked(res.data.new_badges);
+            fetchProfile(); // refresh full profile
+          }
+        }
       }
     } catch (err) {
       setStatus('idle');
@@ -323,14 +381,48 @@ function Chat({ subject, level, token, onBack, onLogout }) {
     }
   };
 
+  // XP bar for young levels
+  const xpForCurrentLevel = profile ? (LEVEL_THRESHOLDS[profile.level - 1] || 0) : 0;
+  const xpForNextLevel = profile ? (LEVEL_THRESHOLDS[profile.level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]) : 50;
+  const xpProgress = profile ? Math.min(100, ((profile.xp - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100) : 0;
+
   return (
     <div className="chat-page page">
       <div className="chat-header-card">
         <span className="chat-header-icon">{subject.icon}</span>
         <div className="chat-header-text"><h2>{subject.name}</h2><p>{level.name} · {level.desc}</p></div>
-        <span className="chat-header-badge">{level.icon} {level.name}</span>
-        <button className="back-btn" onClick={onBack} style={{ marginLeft: '1rem' }}>← Back</button>
+        {isYoung && profile && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', marginLeft: 'auto', marginRight: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+              <span style={{ color: '#fbbf24', fontWeight: 700 }}>{LEVEL_NAMES[profile.level]}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{profile.xp} XP</span>
+            </div>
+            <div style={{ width: '140px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '99px', overflow: 'hidden' }}>
+              <div style={{ width: `${xpProgress}%`, height: '100%', background: 'linear-gradient(90deg, #a78bfa, #ec4899)', borderRadius: '99px', transition: 'width 0.6s ease' }} />
+            </div>
+            <button onClick={() => setShowTrophies(v => !v)} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}>
+              🏆 {profile.badges?.length || 0} Trophies
+            </button>
+          </div>
+        )}
+        <button className="back-btn" onClick={onBack} style={{ marginLeft: '0.5rem' }}>← Back</button>
       </div>
+
+      {/* Trophies Panel */}
+      {showTrophies && isYoung && profile && (
+        <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ width: '100%', fontWeight: 700, marginBottom: '0.25rem' }}>🏆 My Trophies</div>
+          {Object.entries(BADGE_META).map(([id, b]) => {
+            const earned = profile.badges?.some(bk => bk.id === id);
+            return (
+              <div key={id} style={{ background: earned ? '#fbbf2422' : 'rgba(255,255,255,0.03)', border: `1px solid ${earned ? '#fbbf2466' : 'rgba(255,255,255,0.08)'}`, borderRadius: '10px', padding: '0.6rem 1rem', opacity: earned ? 1 : 0.4 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{b.name}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{b.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="glass-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }}>
         
@@ -603,9 +695,19 @@ function AdminDashboard({ onBack, token }) {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null); // gamification profile
+  const [badgePopup, setBadgePopup] = useState([]); // badges to show in popup
   const [view, setView] = useState('dashboard');
   const [subject, setSubject] = useState(null);
   const [level, setLevel] = useState(null);
+
+  // Fetch gamification profile whenever token changes
+  const fetchGameProfile = async (tkn) => {
+    try {
+      const res = await axios.get(`${API}/api/profile`, { headers: { Authorization: `Bearer ${tkn}` } });
+      setProfile(res.data);
+    } catch {}
+  };
 
   // Fetch user profile if token exists
   useEffect(() => {
@@ -617,8 +719,10 @@ export default function App() {
           setToken(null);
           setUser(null);
         });
+      fetchGameProfile(token);
     } else {
       setUser(null);
+      setProfile(null);
     }
   }, [token]);
 
@@ -678,14 +782,15 @@ export default function App() {
   return (
     <>
       <Stars />
+      <BadgePopup badges={badgePopup} onClose={() => setBadgePopup([])} />
       <div className="app">
-        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onAdmin={openAdmin} onLogout={handleLogout} user={user} />
+        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onAdmin={openAdmin} onLogout={handleLogout} user={user} profile={profile} />
         
         {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
         
         {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} />}
         {view === 'classSelector' && token && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
-        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} />}
+        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} />}
         
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
         {view === 'admin'         && token && user?.is_admin && <AdminDashboard onBack={goHome} token={token} />}

@@ -1,6 +1,6 @@
 import os
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
@@ -62,6 +62,10 @@ class UserResponse(BaseModel):
     id: int
     email: str
     is_admin: bool = False
+    xp: int = 0
+    level: int = 1
+    streak_count: int = 0
+    badges: str = ""
 
 class Token(BaseModel):
     access_token: str
@@ -75,6 +79,11 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     status: str
     answer: str = None
+    xp_earned: int = 0
+    new_xp: int = 0
+    new_level: int = 1
+    streak_count: int = 0
+    new_badges: List[str] = []
 
 class ChatMessageResponse(BaseModel):
     role: str
@@ -93,6 +102,77 @@ YOUNG_LEVELS = [
     "primary (class 1-5)", "middle school (class 6-10)"
 ]
 ADVANCED_LEVELS = ["graduate", "phd"]
+
+# ── Gamification ─────────────────────────────────────────────────────────────
+XP_PER_QUESTION = 10
+LEVEL_THRESHOLDS = [0, 50, 150, 350, 700, 1200]  # XP needed to reach levels 1-5
+LEVEL_NAMES = ["", "Curious Cub 🐣", "Explorer 🧭", "Scholar 📚", "Genius 💡", "Master 🏆"]
+
+BADGE_DEFINITIONS = [
+    {"id": "first_step",    "name": "First Step 🌱",       "desc": "Ask your first question"},
+    {"id": "ten_questions", "name": "Ten Questions 🔟",    "desc": "Ask 10 questions total"},
+    {"id": "hot_streak",    "name": "Hot Streak 🔥",       "desc": "Maintain a 3-day streak"},
+    {"id": "star_student",  "name": "Star Student 🌟",     "desc": "Reach Scholar level"},
+    {"id": "multi_subject", "name": "Big Brain 🧠",        "desc": "Ask in 3 different subjects"},
+]
+
+def calc_level(xp: int) -> int:
+    for lvl in range(len(LEVEL_THRESHOLDS) - 1, 0, -1):
+        if xp >= LEVEL_THRESHOLDS[lvl]:
+            return lvl + 1
+    return 1
+
+def award_gamification(user: models.User, db: Session, total_questions: int, subjects_used: list) -> tuple:
+    """Award XP, update streak, check for new badges. Returns (xp_earned, new_badges)."""
+    today = date.today()
+    new_badges = []
+    earned_badges = set(user.badges.split(",")) if user.badges else set()
+
+    # Update streak
+    if user.last_active_date is None:
+        user.streak_count = 1
+    elif user.last_active_date == today:
+        pass  # already active today, no change
+    elif user.last_active_date == today - timedelta(days=1):
+        user.streak_count = (user.streak_count or 0) + 1
+    else:
+        user.streak_count = 1  # reset streak
+    user.last_active_date = today
+
+    # Award XP
+    user.xp = (user.xp or 0) + XP_PER_QUESTION
+    old_level = user.level or 1
+    user.level = calc_level(user.xp)
+
+    # Check badge: star_student (reached Scholar = level 3+)
+    if user.level >= 3 and "star_student" not in earned_badges:
+        earned_badges.add("star_student")
+        new_badges.append("star_student")
+
+    # Check badge: first_step
+    if total_questions >= 1 and "first_step" not in earned_badges:
+        earned_badges.add("first_step")
+        new_badges.append("first_step")
+
+    # Check badge: ten_questions
+    if total_questions >= 10 and "ten_questions" not in earned_badges:
+        earned_badges.add("ten_questions")
+        new_badges.append("ten_questions")
+
+    # Check badge: hot_streak
+    if user.streak_count >= 3 and "hot_streak" not in earned_badges:
+        earned_badges.add("hot_streak")
+        new_badges.append("hot_streak")
+
+    # Check badge: multi_subject (3+ distinct subjects)
+    if len(set(subjects_used)) >= 3 and "multi_subject" not in earned_badges:
+        earned_badges.add("multi_subject")
+        new_badges.append("multi_subject")
+
+    user.badges = ",".join(filter(None, earned_badges))
+    db.commit()
+    db.refresh(user)
+    return XP_PER_QUESTION, new_badges
 
 def get_system_prompt(level: str, subject: str) -> str:
     level_lower = level.lower()
@@ -259,7 +339,29 @@ async def submit_query(
     db.add(ai_msg)
     db.commit()
 
-    return QueryResponse(status="completed", answer=answer)
+    # Gamification: award XP, update streak, check badges (only for young levels)
+    level_lower = req.level.lower()
+    xp_earned, new_badges = 0, []
+    if level_lower in YOUNG_LEVELS:
+        total_questions = db.query(models.ChatMessage).filter(
+            models.ChatMessage.user_id == current_user.id,
+            models.ChatMessage.role == 'user'
+        ).count()
+        subjects_used = [m.subject for m in db.query(models.ChatMessage.subject).filter(
+            models.ChatMessage.user_id == current_user.id,
+            models.ChatMessage.role == 'user'
+        ).distinct().all()]
+        xp_earned, new_badges = award_gamification(current_user, db, total_questions, subjects_used)
+
+    return QueryResponse(
+        status="completed",
+        answer=answer,
+        xp_earned=xp_earned,
+        new_xp=current_user.xp,
+        new_level=current_user.level,
+        streak_count=current_user.streak_count,
+        new_badges=new_badges
+    )
 
 @app.get("/api/stats")
 def get_stats():
@@ -281,6 +383,20 @@ def get_stats():
         }
     }
 
+@app.get("/api/profile")
+def get_profile(current_user: models.User = Depends(get_current_user)):
+    earned_badges = [b for b in current_user.badges.split(",") if b]
+    badge_details = [d for d in BADGE_DEFINITIONS if d["id"] in earned_badges]
+    return {
+        "email": current_user.email,
+        "xp": current_user.xp or 0,
+        "level": current_user.level or 1,
+        "level_name": LEVEL_NAMES[min(current_user.level or 1, len(LEVEL_NAMES)-1)],
+        "streak_count": current_user.streak_count or 0,
+        "badges": badge_details,
+        "xp_for_next_level": LEVEL_THRESHOLDS[min((current_user.level or 1), len(LEVEL_THRESHOLDS)-1)],
+    }
+
 @app.get("/api/admin/stats")
 def get_admin_stats(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user.is_admin:
@@ -297,6 +413,8 @@ def get_admin_stats(current_user: models.User = Depends(get_current_user), db: S
             "id": u.id,
             "email": u.email,
             "questions_asked": question_count,
-            "is_admin": u.is_admin
+            "is_admin": u.is_admin,
+            "level": LEVEL_NAMES[min(u.level or 1, len(LEVEL_NAMES)-1)],
+            "streak": u.streak_count or 0,
         })
     return {"users": user_stats}

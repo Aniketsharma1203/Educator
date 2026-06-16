@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean, Date
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -10,6 +10,13 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False)
+
+    # Gamification
+    xp = Column(Integer, default=0)
+    level = Column(Integer, default=1)
+    streak_count = Column(Integer, default=0)
+    last_active_date = Column(Date, nullable=True)
+    badges = Column(String, default="")  # comma-separated badge ids e.g. "first_step,ten_questions"
 
     messages = relationship("ChatMessage", back_populates="user")
 
