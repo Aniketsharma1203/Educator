@@ -234,13 +234,25 @@ async def submit_query(
     else:
         track("tier:university")
 
-    # Save user message to DB
+    # Save user message to DB (save the original short text so UI looks clean)
     user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=req.question, subject=req.subject)
     db.add(user_msg)
     db.commit()
 
-    # Call AI
-    answer = await run_inference(req.question, system_prompt)
+    # Enhance short or ambiguous queries to reduce hallucination
+    enhanced_query = req.question
+    if len(req.question.split()) < 10:
+        enhanced_query = (
+            f"{req.question}\n\n"
+            f"[System Directive: The user provided a very short or vague prompt. "
+            f"Please interpret this strictly within the context of {req.subject}. "
+            f"Provide a highly precise, factual, and structured explanation. "
+            f"If the query is ambiguous, focus on the most fundamental concept related to it. "
+            f"Do not hallucinate, guess, or invent unverified facts.]"
+        )
+
+    # Call AI using the enhanced query
+    answer = await run_inference(enhanced_query, system_prompt)
 
     # Save AI response to DB
     ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer, subject=req.subject)
