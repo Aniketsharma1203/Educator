@@ -17,6 +17,7 @@ class ChatMessage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    subject = Column(String)
     role = Column(String) # 'user' or 'assistant'
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)

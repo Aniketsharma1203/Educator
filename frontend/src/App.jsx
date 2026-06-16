@@ -265,7 +265,7 @@ function Chat({ subject, level, token, onBack, onLogout }) {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await axios.get(`${API}/api/history`, {
+        const res = await axios.get(`${API}/api/history?subject=${encodeURIComponent(subject.name)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setHistory(res.data);

@@ -163,9 +163,10 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 @app.get("/api/history", response_model=List[ChatMessageResponse])
-def get_chat_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_chat_history(subject: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     messages = db.query(models.ChatMessage)\
         .filter(models.ChatMessage.user_id == current_user.id)\
+        .filter(models.ChatMessage.subject == subject)\
         .order_by(models.ChatMessage.timestamp.desc())\
         .limit(20).all() # Last 10 exchanges (user + assistant)
     
@@ -194,9 +195,10 @@ async def submit_query(
             detail="Rate limit exceeded. You can only ask 3 questions per minute."
         )
 
-    # 2. Fetch past memory (last 10 questions)
+    # 2. Fetch past memory (last 10 questions) for this specific subject
     past_messages = db.query(models.ChatMessage)\
         .filter(models.ChatMessage.user_id == current_user.id)\
+        .filter(models.ChatMessage.subject == req.subject)\
         .order_by(models.ChatMessage.timestamp.desc())\
         .limit(20).all()
     
@@ -229,7 +231,7 @@ async def submit_query(
         track("tier:university")
 
     # Save user message to DB
-    user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=req.question)
+    user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=req.question, subject=req.subject)
     db.add(user_msg)
     db.commit()
 
@@ -237,7 +239,7 @@ async def submit_query(
     answer = await run_inference(req.question, system_prompt)
 
     # Save AI response to DB
-    ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer)
+    ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer, subject=req.subject)
     db.add(ai_msg)
     db.commit()
 
