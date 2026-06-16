@@ -1,13 +1,24 @@
 import os
 import asyncio
-from fastapi import FastAPI, HTTPException
+from datetime import datetime, timedelta
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from sqlalchemy.orm import Session
+
 from tasks import run_inference
+import models
+import database
+from database import engine, get_db
+from auth import get_password_hash, verify_password, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Create DB tables
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="OmniTutor API")
 
@@ -35,12 +46,24 @@ STATS = {
 }
 
 def track(key: str, amount: int = 1):
-    """Safely increment in-memory counter."""
     if key in STATS:
         STATS[key] += amount
 
 def get_counter(key: str) -> int:
     return STATS.get(key, 0)
+
+# Pydantic Schemas
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class QueryRequest(BaseModel):
     question: str
@@ -50,6 +73,11 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     status: str
     answer: str = None
+
+class ChatMessageResponse(BaseModel):
+    role: str
+    content: str
+    timestamp: datetime
 
 SUBJECT_KEYS = {
     "mathematics": "math",
@@ -62,13 +90,11 @@ YOUNG_LEVELS = [
     "kindergarten", "elementary school",
     "primary (class 1-5)", "middle school (class 6-10)"
 ]
-
 ADVANCED_LEVELS = ["graduate", "phd"]
 
 def get_system_prompt(level: str, subject: str) -> str:
     level_lower = level.lower()
     subject_lower = (subject or "general").lower()
-
     is_young = level_lower in YOUNG_LEVELS
 
     subject_contexts = {
@@ -103,26 +129,118 @@ def root():
     track("visits")
     return {"status": "ok", "message": "OmniTutor API"}
 
-@app.post("/api/query", response_model=QueryResponse)
-async def submit_query(req: QueryRequest):
-    system_prompt = get_system_prompt(req.level, req.subject or "General")
+@app.post("/api/auth/signup", response_model=UserResponse)
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = models.User(email=user.email, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
 
-    # Track question stats
+@app.post("/api/auth/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=UserResponse)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
+@app.get("/api/history", response_model=List[ChatMessageResponse])
+def get_chat_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    messages = db.query(models.ChatMessage)\
+        .filter(models.ChatMessage.user_id == current_user.id)\
+        .order_by(models.ChatMessage.timestamp.desc())\
+        .limit(20).all() # Last 10 exchanges (user + assistant)
+    
+    return [
+        ChatMessageResponse(role=msg.role, content=msg.content, timestamp=msg.timestamp)
+        for msg in reversed(messages)
+    ]
+
+@app.post("/api/query", response_model=QueryResponse)
+async def submit_query(
+    req: QueryRequest, 
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # 1. Rate Limiting Check: Max 3 questions in the last 60 seconds
+    one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+    recent_questions = db.query(models.ChatMessage)\
+        .filter(models.ChatMessage.user_id == current_user.id)\
+        .filter(models.ChatMessage.role == 'user')\
+        .filter(models.ChatMessage.timestamp >= one_minute_ago)\
+        .count()
+    
+    if recent_questions >= 3:
+        raise HTTPException(
+            status_code=429, 
+            detail="Rate limit exceeded. You can only ask 3 questions per minute."
+        )
+
+    # 2. Fetch past memory (last 10 questions)
+    past_messages = db.query(models.ChatMessage)\
+        .filter(models.ChatMessage.user_id == current_user.id)\
+        .order_by(models.ChatMessage.timestamp.desc())\
+        .limit(20).all()
+    
+    past_messages.reverse() # chronological order
+    
+    # 3. Format memory context
+    system_prompt = get_system_prompt(req.level, req.subject or "General")
+    
+    # We will embed past memory into the system prompt or simply prepend it
+    memory_context = ""
+    if past_messages:
+        memory_context = "\n\nPrevious Conversation History:\n"
+        for msg in past_messages:
+            memory_context += f"{msg.role.capitalize()}: {msg.content}\n"
+        
+        system_prompt += memory_context + "\nNow respond to the latest user message."
+
+    # Stats tracking
     track("questions:total")
     subject_key = SUBJECT_KEYS.get((req.subject or "general").lower(), "other")
     track(f"questions:{subject_key}")
     level_lower = req.level.lower()
     if level_lower in YOUNG_LEVELS:
         track("tier:school")
-    elif level_lower in ["high school"]:
-        track("tier:highschool")
     elif level_lower in ADVANCED_LEVELS:
         track("tier:phd")
+    elif "high" in level_lower:
+        track("tier:highschool")
     else:
         track("tier:university")
 
-    # All requests wait for run_inference using async/await
+    # Save user message to DB
+    user_msg = models.ChatMessage(user_id=current_user.id, role="user", content=req.question)
+    db.add(user_msg)
+    db.commit()
+
+    # Call AI
     answer = await run_inference(req.question, system_prompt)
+
+    # Save AI response to DB
+    ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer)
+    db.add(ai_msg)
+    db.commit()
+
     return QueryResponse(status="completed", answer=answer)
 
 @app.get("/api/stats")

@@ -74,21 +74,122 @@ function Stars() {
 }
 
 /* ─── Navbar ─────────────────────────────────────────────────────────── */
-function Nav({ view, subject, level, onLogoClick, onStats }) {
+function Nav({ view, subject, level, onLogoClick, onStats, onLogout }) {
   return (
     <nav className="nav">
       <div className="nav-logo" onClick={onLogoClick}>✦ OmniTutor</div>
-      {view !== 'dashboard' && view !== 'stats' && (
+      {view !== 'dashboard' && view !== 'stats' && view !== 'auth' && (
         <div className="breadcrumb">
           <span onClick={onLogoClick} style={{ cursor: 'pointer', opacity: 0.6 }}>Home</span>
           {subject && <><span className="sep">›</span><span>{subject.name}</span></>}
           {level && view === 'chat' && <><span className="sep">›</span><span>{level.name}</span></>}
         </div>
       )}
-      <button className={`stats-nav-btn ${view === 'stats' ? 'active' : ''}`} onClick={onStats} title="Analytics Dashboard">
-        📊 Stats
-      </button>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <button className={`stats-nav-btn ${view === 'stats' ? 'active' : ''}`} onClick={onStats} title="Analytics Dashboard">
+          📊 Stats
+        </button>
+        {view !== 'auth' && (
+          <button className="stats-nav-btn" onClick={onLogout} style={{ background: '#ef444433', color: '#fca5a5' }}>
+            🚪 Logout
+          </button>
+        )}
+      </div>
     </nav>
+  );
+}
+
+/* ─── Auth Component ─────────────────────────────────────────────────── */
+function Auth({ onAuthSuccess }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    
+    try {
+      if (isLogin) {
+        // OAuth2 Password Request Form requires x-www-form-urlencoded
+        const formData = new URLSearchParams();
+        formData.append('username', email);
+        formData.append('password', password);
+        
+        const res = await axios.post(`${API}/api/auth/login`, formData, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        localStorage.setItem('token', res.data.access_token);
+        onAuthSuccess(res.data.access_token);
+      } else {
+        await axios.post(`${API}/api/auth/signup`, { email, password });
+        setIsLogin(true); // Switch to login after successful signup
+        setError('Signup successful! Please login.');
+      }
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError('Network error. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
+      <div className="glass-panel" style={{ maxWidth: '400px', width: '100%', padding: '2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <span style={{ fontSize: '3rem' }}>🎓</span>
+          <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+          <p style={{ color: 'var(--text-muted)' }}>{isLogin ? 'Login to continue your learning journey' : 'Sign up to start asking questions'}</p>
+        </div>
+
+        {error && <div style={{ background: '#ef444433', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #ef444466' }}>{error}</div>}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="form-group">
+            <label>Email Address</label>
+            <input 
+              type="email" 
+              className="input-field" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              required 
+              style={{ minHeight: '40px', padding: '0.8rem' }}
+            />
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input 
+              type="password" 
+              className="input-field" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              required 
+              style={{ minHeight: '40px', padding: '0.8rem' }}
+            />
+          </div>
+          <button className="btn-submit" disabled={loading} style={{ marginTop: '1rem' }}>
+            {loading ? '⏳ Please wait...' : (isLogin ? 'Login' : 'Sign Up')}
+          </button>
+        </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)' }}>
+          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          <span 
+            onClick={() => { setIsLogin(!isLogin); setError(''); }} 
+            style={{ color: '#22d3ee', cursor: 'pointer', fontWeight: 600 }}
+          >
+            {isLogin ? 'Sign up' : 'Login'}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -100,10 +201,10 @@ function Dashboard({ onSelect }) {
         <span className="hero-mascot">🎓</span>
         <h1>Learn Anything.<br />At Any Level.</h1>
         <p>Choose a subject below and tell us your grade — OmniTutor adapts to you.</p>
-        <div className="hero-badge"><span>⚡</span><span>Powered by DeepSeek-R1 · 671B parameters</span></div>
+        <div className="hero-badge"><span>⚡</span><span>Powered by Llama-3.3-70B</span></div>
       </div>
       <div className="stats-bar">
-        {[['4','Subjects'],['10+','Grade Levels'],['671B','AI Parameters'],['∞','Questions']].map(([v,l]) => (
+        {[['4','Subjects'],['10+','Grade Levels'],['70B','AI Parameters'],['∞','Questions']].map(([v,l]) => (
           <div key={l} className="stat-item"><div className="stat-value">{v}</div><div className="stat-label">{l}</div></div>
         ))}
       </div>
@@ -152,43 +253,72 @@ function ClassSelector({ subject, onSelect, onBack }) {
 }
 
 /* ─── Screen 3: Chat ─────────────────────────────────────────────────── */
-function Chat({ subject, level, onBack }) {
+function Chat({ subject, level, token, onBack, onLogout }) {
   const [question, setQuestion] = useState('');
   const [status, setStatus] = useState('idle');
-  const [answer, setAnswer] = useState('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [errorMsg, setErrorMsg] = useState('');
   const isYoung = YOUNG_LEVELS.includes(level.level);
+  const chatEndRef = useRef(null);
 
-  const finalize = (text) => {
-    setAnswer(text); setStatus('completed');
-    if (isYoung) confetti({ particleCount: 180, spread: 90, origin: { y: 0.55 }, colors: ['#a78bfa','#ec4899','#fbbf24','#34d399'] });
-  };
+  // Load chat history on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await axios.get(`${API}/api/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setHistory(res.data);
+      } catch (err) {
+        if (err.response?.status === 401) onLogout();
+      }
+    };
+    fetchHistory();
+  }, [token, onLogout]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, status]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim()) return;
-    setStatus('processing'); setAnswer('');
-    window.speechSynthesis?.cancel(); setIsSpeaking(false);
+    
+    const userQ = question;
+    setQuestion('');
+    setStatus('processing');
+    setErrorMsg('');
+    
+    // Optimistically add user question to history
+    const tempHistory = [...history, { role: 'user', content: userQ, timestamp: new Date().toISOString() }];
+    setHistory(tempHistory);
+    
     try {
-      const res = await axios.post(`${API}/api/query`, { question, level: level.level, subject: subject.name });
-      if (res.data.status === 'completed') finalize(res.data.answer);
-      else { setStatus('error'); setAnswer('Unexpected response from backend.'); }
-    } catch { setStatus('error'); setAnswer('Failed to reach the backend. Make sure the server is running.'); }
+      const res = await axios.post(`${API}/api/query`, 
+        { question: userQ, level: level.level, subject: subject.name },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (res.data.status === 'completed') {
+        setStatus('idle');
+        setHistory([...tempHistory, { role: 'assistant', content: res.data.answer, timestamp: new Date().toISOString() }]);
+        if (isYoung) confetti({ particleCount: 180, spread: 90, origin: { y: 0.55 }, colors: ['#a78bfa','#ec4899','#fbbf24','#34d399'] });
+      }
+    } catch (err) {
+      setStatus('idle');
+      if (err.response?.status === 401) {
+        onLogout();
+      } else if (err.response?.status === 429) {
+        setErrorMsg('⏳ Rate limit exceeded! You can only ask 3 questions per minute. Please wait a moment.');
+        setHistory(history); // revert temp addition
+        setQuestion(userQ); // give question back
+      } else {
+        setErrorMsg('❌ Failed to reach the backend. Make sure the server is running.');
+        setHistory(history); // revert temp addition
+        setQuestion(userQ);
+      }
+    }
   };
-
-  const handleSpeak = () => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(mainAnswer.replace(/[*_#`~$\\]/g, ''));
-    utt.rate = isYoung ? 0.85 : 1.0;
-    utt.onstart = () => setIsSpeaking(true);
-    utt.onend = utt.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utt);
-  };
-
-  let thinkContent = '', mainAnswer = answer;
-  const thinkMatch = answer.match(/<think>([\s\S]*?)<\/think>/);
-  if (thinkMatch) { thinkContent = thinkMatch[1].trim(); mainAnswer = answer.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
 
   return (
     <div className="chat-page page">
@@ -198,51 +328,79 @@ function Chat({ subject, level, onBack }) {
         <span className="chat-header-badge">{level.icon} {level.name}</span>
         <button className="back-btn" onClick={onBack} style={{ marginLeft: '1rem' }}>← Back</button>
       </div>
-      <div className="glass-panel">
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Your Question</label>
-            <textarea className="input-field" placeholder={`Ask anything about ${subject.name}…`} value={question} onChange={e => setQuestion(e.target.value)} disabled={status === 'processing'} />
+
+      <div className="glass-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }}>
+        
+        {/* Chat History Area */}
+        <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {history.length === 0 && status === 'idle' && (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>
+              <span style={{ fontSize: '3rem', opacity: 0.5 }}>{subject.icon}</span>
+              <p>No questions asked yet. Start the conversation!</p>
+            </div>
+          )}
+
+          {history.map((msg, i) => (
+            <div key={i} style={{ 
+              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              background: msg.role === 'user' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+              border: msg.role === 'user' ? '1px solid rgba(34, 211, 238, 0.2)' : '1px solid rgba(255, 255, 255, 0.1)',
+              padding: '1rem',
+              borderRadius: '12px',
+              maxWidth: '85%',
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {msg.role === 'user' ? 'You' : 'OmniTutor'}
+              </div>
+              <div className="markdown-body" style={{ margin: 0 }}>
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown>
+              </div>
+            </div>
+          ))}
+
+          {status === 'processing' && (
+            <div style={{ alignSelf: 'flex-start', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '1rem', borderRadius: '12px', maxWidth: '85%' }}>
+              <div className="loader" style={{ padding: '0.5rem', marginTop: 0 }}>
+                <div className="spinner-ring" style={{ width: '24px', height: '24px', borderWidth: '2px' }} />
+                <p style={{ margin: 0 }}>{isYoung ? '✨ Cooking up a fun explanation…' : '🧠 Thinking deeply'}<span className="loader-dots" /></p>
+              </div>
+            </div>
+          )}
+          
+          {errorMsg && (
+            <div style={{ alignSelf: 'center', background: '#ef444433', border: '1px solid #ef444466', color: '#fca5a5', padding: '1rem', borderRadius: '8px', maxWidth: '85%', textAlign: 'center' }}>
+              {errorMsg}
+            </div>
+          )}
+          
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <form onSubmit={handleSubmit} style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+            <textarea 
+              className="input-field" 
+              placeholder={`Ask anything about ${subject.name}…`} 
+              value={question} 
+              onChange={e => setQuestion(e.target.value)} 
+              disabled={status === 'processing'} 
+              style={{ minHeight: '60px', padding: '1rem' }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+            />
           </div>
-          <button className="btn-submit" disabled={status === 'processing' || !question.trim()}>
-            {status === 'processing' ? '⏳ Thinking…' : `Ask OmniTutor ${subject.icon}`}
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Press Enter to send, Shift+Enter for new line</span>
+            <button className="btn-submit" disabled={status === 'processing' || !question.trim()} style={{ margin: 0, padding: '0.8rem 2rem', width: 'auto' }}>
+              Send
+            </button>
+          </div>
         </form>
-        {status === 'processing' && (
-          <div className="loader">
-            <div className="spinner-ring" />
-            <p>{isYoung ? '✨ Cooking up a fun explanation…' : '🧠 Running deep mathematical reasoning'}<span className="loader-dots" /></p>
-          </div>
-        )}
-        {status === 'error' && (
-          <div className="result-container">
-            <h2 className="result-header" style={{ color: '#ef4444' }}>Error</h2>
-            <div className="markdown-body"><p>{mainAnswer || answer}</p></div>
-          </div>
-        )}
-        {status === 'completed' && answer && (
-          <div className="result-container">
-            {thinkContent && (
-              <details className="think-accordion">
-                <summary>🧠 View AI Thought Process</summary>
-                <div className="think-content markdown-body">
-                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{thinkContent}</ReactMarkdown>
-                </div>
-              </details>
-            )}
-            <div className="answer-header">
-              <h2 className="result-header">Explanation</h2>
-              {isYoung && (
-                <button className={`tts-button ${isSpeaking ? 'speaking' : ''}`} onClick={handleSpeak}>
-                  {isSpeaking ? '🔊 Playing…' : '🔈 Read Aloud'}
-                </button>
-              )}
-            </div>
-            <div className="markdown-body">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{mainAnswer}</ReactMarkdown>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -287,7 +445,7 @@ function StatsDashboard({ onBack }) {
   return (
     <div className="stats-page page">
       <div className="stats-page-header">
-        <button className="back-btn" onClick={onBack}>← Back to Home</button>
+        <button className="back-btn" onClick={onBack}>← Back</button>
         <div>
           <h1 className="stats-page-title">📊 Live Analytics</h1>
           <p className="stats-page-sub">Auto-refreshes every 15 seconds</p>
@@ -309,7 +467,6 @@ function StatsDashboard({ onBack }) {
 
       {stats && !loading && (
         <>
-          {/* Top KPI Cards */}
           <div className="kpi-grid">
             <div className="kpi-card kpi-visits">
               <div className="kpi-icon">👁️</div>
@@ -328,14 +485,12 @@ function StatsDashboard({ onBack }) {
             </div>
             <div className="kpi-card kpi-model">
               <div className="kpi-icon">🤖</div>
-              <div className="kpi-value" style={{ fontSize: '1.2rem' }}>R1-0528</div>
-              <div className="kpi-label">DeepSeek Model</div>
+              <div className="kpi-value" style={{ fontSize: '1.2rem' }}>Llama-3.3-70B</div>
+              <div className="kpi-label">Meta Model</div>
             </div>
           </div>
 
-          {/* Charts Row */}
           <div className="charts-row">
-            {/* Questions by Subject */}
             <div className="chart-card">
               <h3 className="chart-title">Questions by Subject</h3>
               <div className="bar-chart">
@@ -350,8 +505,6 @@ function StatsDashboard({ onBack }) {
                 ))}
               </div>
             </div>
-
-            {/* Questions by Tier */}
             <div className="chart-card">
               <h3 className="chart-title">Questions by Level</h3>
               <div className="bar-chart">
@@ -367,26 +520,6 @@ function StatsDashboard({ onBack }) {
               </div>
             </div>
           </div>
-
-          {/* Subject Donut-style rings */}
-          <div className="chart-card" style={{ marginTop: '1.5rem' }}>
-            <h3 className="chart-title">Subject Breakdown</h3>
-            <div className="subject-rings">
-              {subjectData.map(d => {
-                const pct = stats.questions.total > 0 ? Math.round((d.value / stats.questions.total) * 100) : 0;
-                return (
-                  <div key={d.label} className="ring-item">
-                    <div className="ring-circle" style={{ '--pct': pct, '--color': d.color }}>
-                      <span className="ring-icon">{d.icon}</span>
-                      <span className="ring-pct">{pct}%</span>
-                    </div>
-                    <div className="ring-label">{d.label}</div>
-                    <div className="ring-count" style={{ color: d.color }}>{d.value} Qs</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </>
       )}
     </div>
@@ -395,24 +528,51 @@ function StatsDashboard({ onBack }) {
 
 /* ─── App Root ───────────────────────────────────────────────────────── */
 export default function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [view, setView] = useState('dashboard');
   const [subject, setSubject] = useState(null);
   const [level, setLevel] = useState(null);
 
-  const goHome = () => { setView('dashboard'); setSubject(null); setLevel(null); };
+  // If not logged in, force auth view (unless looking at stats)
+  useEffect(() => {
+    if (!token && view !== 'stats') {
+      setView('auth');
+    } else if (token && view === 'auth') {
+      setView('dashboard');
+    }
+  }, [token, view]);
+
+  const goHome = () => { setView(token ? 'dashboard' : 'auth'); setSubject(null); setLevel(null); };
   const pickSubject = (s) => { setSubject(s); setView('classSelector'); };
   const pickLevel  = (l) => { setLevel(l); setView('chat'); };
   const backToClasses = () => setView('classSelector');
-  const openStats = () => setView(v => v === 'stats' ? 'dashboard' : 'stats');
+  const openStats = () => setView(v => v === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats');
+  
+  const handleAuthSuccess = (newToken) => {
+    setToken(newToken);
+    setView('dashboard');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setView('auth');
+    setSubject(null);
+    setLevel(null);
+  };
 
   return (
     <>
       <Stars />
       <div className="app">
-        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} />
-        {view === 'dashboard'     && <Dashboard onSelect={pickSubject} />}
-        {view === 'classSelector' && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
-        {view === 'chat'          && subject && level && <Chat subject={subject} level={level} onBack={backToClasses} />}
+        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onLogout={handleLogout} />
+        
+        {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
+        
+        {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} />}
+        {view === 'classSelector' && token && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
+        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} />}
+        
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
       </div>
     </>
