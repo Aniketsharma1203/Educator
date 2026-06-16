@@ -44,7 +44,7 @@ const YOUNG_LEVELS = ['Primary (Class 1-5)', 'Middle School (Class 6-10)'];
 function AnimatedNumber({ value, duration = 1400 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
-    if (!value) return;
+    if (value == null) return;
     let start = 0;
     const step = value / (duration / 16);
     const timer = setInterval(() => {
@@ -74,11 +74,11 @@ function Stars() {
 }
 
 /* ─── Navbar ─────────────────────────────────────────────────────────── */
-function Nav({ view, subject, level, onLogoClick, onStats, onLogout }) {
+function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, user }) {
   return (
     <nav className="nav">
       <div className="nav-logo" onClick={onLogoClick}>✦ OmniTutor</div>
-      {view !== 'dashboard' && view !== 'stats' && view !== 'auth' && (
+      {view !== 'dashboard' && view !== 'stats' && view !== 'auth' && view !== 'admin' && (
         <div className="breadcrumb">
           <span onClick={onLogoClick} style={{ cursor: 'pointer', opacity: 0.6 }}>Home</span>
           {subject && <><span className="sep">›</span><span>{subject.name}</span></>}
@@ -86,6 +86,11 @@ function Nav({ view, subject, level, onLogoClick, onStats, onLogout }) {
         </div>
       )}
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        {user?.is_admin && (
+          <button className={`stats-nav-btn ${view === 'admin' ? 'active' : ''}`} onClick={onAdmin} style={{ background: '#8b5cf633', color: '#c4b5fd' }}>
+            🛡️ Admin
+          </button>
+        )}
         <button className={`stats-nav-btn ${view === 'stats' ? 'active' : ''}`} onClick={onStats} title="Analytics Dashboard">
           📊 Stats
         </button>
@@ -114,7 +119,6 @@ function Auth({ onAuthSuccess }) {
     
     try {
       if (isLogin) {
-        // OAuth2 Password Request Form requires x-www-form-urlencoded
         const formData = new URLSearchParams();
         formData.append('username', email);
         formData.append('password', password);
@@ -274,7 +278,7 @@ function Chat({ subject, level, token, onBack, onLogout }) {
       }
     };
     fetchHistory();
-  }, [token, onLogout]);
+  }, [subject.name, token, onLogout]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -289,7 +293,6 @@ function Chat({ subject, level, token, onBack, onLogout }) {
     setStatus('processing');
     setErrorMsg('');
     
-    // Optimistically add user question to history
     const tempHistory = [...history, { role: 'user', content: userQ, timestamp: new Date().toISOString() }];
     setHistory(tempHistory);
     
@@ -310,11 +313,11 @@ function Chat({ subject, level, token, onBack, onLogout }) {
         onLogout();
       } else if (err.response?.status === 429) {
         setErrorMsg('⏳ Rate limit exceeded! You can only ask 3 questions per minute. Please wait a moment.');
-        setHistory(history); // revert temp addition
-        setQuestion(userQ); // give question back
+        setHistory(history);
+        setQuestion(userQ);
       } else {
         setErrorMsg('❌ Failed to reach the backend. Make sure the server is running.');
-        setHistory(history); // revert temp addition
+        setHistory(history);
         setQuestion(userQ);
       }
     }
@@ -331,7 +334,6 @@ function Chat({ subject, level, token, onBack, onLogout }) {
 
       <div className="glass-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }}>
         
-        {/* Chat History Area */}
         <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {history.length === 0 && status === 'idle' && (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>
@@ -376,7 +378,6 @@ function Chat({ subject, level, token, onBack, onLogout }) {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Area */}
         <form onSubmit={handleSubmit} style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="form-group" style={{ marginBottom: '0.5rem' }}>
             <textarea 
@@ -421,7 +422,7 @@ function StatsDashboard({ onBack }) {
       finally { setLoading(false); }
     };
     fetchStats();
-    const interval = setInterval(fetchStats, 15000); // auto-refresh every 15s
+    const interval = setInterval(fetchStats, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -526,14 +527,102 @@ function StatsDashboard({ onBack }) {
   );
 }
 
+/* ─── Screen 5: Admin Dashboard ─────────────────────────────────────── */
+function AdminDashboard({ onBack, token }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const fetchAdminStats = async () => {
+      try {
+        const res = await axios.get(`${API}/api/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUsers(res.data.users);
+      } catch { setError(true); }
+      finally { setLoading(false); }
+    };
+    fetchAdminStats();
+  }, [token]);
+
+  return (
+    <div className="page">
+      <div className="stats-page-header">
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        <div>
+          <h1 className="stats-page-title">🛡️ Admin Panel</h1>
+          <p className="stats-page-sub">View registered users and activity</p>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="loader" style={{ marginTop: '4rem' }}>
+          <div className="spinner-ring" /><p>Loading admin data…</p>
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="stats-error">
+          <p>⚠️ Failed to load admin stats. You might not have permission.</p>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="glass-panel" style={{ padding: '2rem', marginTop: '2rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>User Statistics</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
+                <th style={{ padding: '1rem 0' }}>ID</th>
+                <th style={{ padding: '1rem 0' }}>Email</th>
+                <th style={{ padding: '1rem 0' }}>Questions Asked</th>
+                <th style={{ padding: '1rem 0' }}>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>#{u.id}</td>
+                  <td style={{ padding: '1rem 0', fontWeight: 600 }}>{u.email}</td>
+                  <td style={{ padding: '1rem 0' }}><span className="topic-tag">{u.questions_asked}</span></td>
+                  <td style={{ padding: '1rem 0' }}>
+                    {u.is_admin ? <span style={{ color: '#c4b5fd', background: '#8b5cf633', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>Admin</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>User</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── App Root ───────────────────────────────────────────────────────── */
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
   const [view, setView] = useState('dashboard');
   const [subject, setSubject] = useState(null);
   const [level, setLevel] = useState(null);
 
-  // If not logged in, force auth view (unless looking at stats)
+  // Fetch user profile if token exists
+  useEffect(() => {
+    if (token) {
+      axios.get(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => setUser(res.data))
+        .catch(() => {
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        });
+    } else {
+      setUser(null);
+    }
+  }, [token]);
+
+  // Routing Logic
   useEffect(() => {
     if (!token && view !== 'stats') {
       setView('auth');
@@ -547,6 +636,7 @@ export default function App() {
   const pickLevel  = (l) => { setLevel(l); setView('chat'); };
   const backToClasses = () => setView('classSelector');
   const openStats = () => setView(v => v === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats');
+  const openAdmin = () => setView(v => v === 'admin' ? 'dashboard' : 'admin');
   
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);
@@ -556,6 +646,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
+    setUser(null);
     setView('auth');
     setSubject(null);
     setLevel(null);
@@ -565,7 +656,7 @@ export default function App() {
     <>
       <Stars />
       <div className="app">
-        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onLogout={handleLogout} />
+        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onAdmin={openAdmin} onLogout={handleLogout} user={user} />
         
         {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
         
@@ -574,6 +665,7 @@ export default function App() {
         {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} />}
         
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
+        {view === 'admin'         && token && user?.is_admin && <AdminDashboard onBack={goHome} token={token} />}
       </div>
     </>
   );

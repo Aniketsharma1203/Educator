@@ -14,6 +14,7 @@ import database
 from database import engine, get_db
 from auth import get_password_hash, verify_password, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from dotenv import load_dotenv
+from sqlalchemy import func
 
 load_dotenv()
 
@@ -60,6 +61,7 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     email: str
+    is_admin: bool = False
 
 class Token(BaseModel):
     access_token: str
@@ -137,7 +139,8 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = get_password_hash(user.password)
-    new_user = models.User(email=user.email, hashed_password=hashed_password)
+    is_admin = (user.email.lower() == "nanhuaniket03@gmail.com")
+    new_user = models.User(email=user.email, hashed_password=hashed_password, is_admin=is_admin)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -265,3 +268,23 @@ def get_stats():
             "phd": get_counter("tier:phd"),
         }
     }
+
+@app.get("/api/admin/stats")
+def get_admin_stats(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    users = db.query(models.User).all()
+    user_stats = []
+    for u in users:
+        question_count = db.query(models.ChatMessage).filter(
+            models.ChatMessage.user_id == u.id, 
+            models.ChatMessage.role == 'user'
+        ).count()
+        user_stats.append({
+            "id": u.id,
+            "email": u.email,
+            "questions_asked": question_count,
+            "is_admin": u.is_admin
+        })
+    return {"users": user_stats}
