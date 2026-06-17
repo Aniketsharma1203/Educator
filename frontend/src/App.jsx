@@ -327,7 +327,7 @@ function ClassSelector({ subject, onSelect, onBack }) {
 }
 
 /* ─── Screen 3: Chat ─────────────────────────────────────────────────── */
-function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
+function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQuiz }) {
   const [question, setQuestion] = useState('');
   const [status, setStatus] = useState('idle');
   const [history, setHistory] = useState([]);
