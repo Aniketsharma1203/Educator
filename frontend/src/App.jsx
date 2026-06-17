@@ -392,12 +392,13 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
     setStatus('processing');
     setErrorMsg('');
     
-    // Create optimistic history entry
-    const userContent = imageBase64 
-      ? `${userQ}\n\n![Uploaded Image](${imagePreview})` 
-      : userQ;
-    
-    const tempHistory = [...history, { role: 'user', content: userContent, timestamp: new Date().toISOString() }];
+    // Create optimistic history entry — store image separately so it renders correctly
+    const tempHistory = [...history, { 
+      role: 'user', 
+      content: userQ, 
+      imagePreview: imageBase64 ? imagePreview : null,
+      timestamp: new Date().toISOString() 
+    }];
     setHistory(tempHistory);
     
     const payloadImage = imageBase64;
@@ -507,9 +508,26 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 {msg.role === 'user' ? 'You' : 'OmniTutor'}
               </div>
-              <div className="markdown-body" style={{ margin: 0 }}>
-                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown>
-              </div>
+              {/* Show uploaded image if present */}
+              {msg.imagePreview && (
+                <img 
+                  src={msg.imagePreview} 
+                  alt="Uploaded question" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '300px', 
+                    borderRadius: '8px', 
+                    marginBottom: msg.content ? '0.75rem' : 0,
+                    display: 'block',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }} 
+                />
+              )}
+              {msg.content && (
+                <div className="markdown-body" style={{ margin: 0 }}>
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown>
+                </div>
+              )}
             </div>
           ))}
 
