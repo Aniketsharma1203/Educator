@@ -15,6 +15,7 @@ const SUBJECTS = [
   { id: 'science', name: 'Science', cls: 'science', icon: '🔬', desc: 'Explore physics, chemistry, biology and the universe beyond.', topics: ['Physics', 'Chemistry', 'Biology', 'Astronomy', 'Quantum'] },
   { id: 'english', name: 'English', cls: 'english', icon: '📖', desc: 'Grammar, literature, creative writing — command the written word.', topics: ['Grammar', 'Literature', 'Essay Writing', 'Poetry', 'Linguistics'] },
   { id: 'general knowledge', name: 'General Knowledge', cls: 'gk', icon: '🌍', desc: 'History, geography, culture and everything that makes our world.', topics: ['History', 'Geography', 'Civics', 'Current Affairs', 'Philosophy'] },
+  { id: 'finance', name: 'Finance', cls: 'finance', icon: '💰', desc: 'Accounting, valuation, derivatives and everything for CA & CFA students.', topics: ['Financial Accounting', 'Valuation', 'Derivatives', 'Corporate Finance', 'Risk Management', 'Taxation', 'Auditing', 'IFRS / GAAP'] },
 ];
 
 const TIERS = [
@@ -413,7 +414,12 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
       
       if (res.data.status === 'completed') {
         setStatus('idle');
-        setHistory([...tempHistory, { role: 'assistant', content: res.data.answer, timestamp: new Date().toISOString() }]);
+        setHistory([...tempHistory, { 
+          role: 'assistant', 
+          content: res.data.answer, 
+          model_used: res.data.model_used,
+          timestamp: new Date().toISOString() 
+        }]);
         if (isYoung) {
           confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#a78bfa','#ec4899','#fbbf24','#34d399'] });
           // Update profile optimistically
@@ -505,8 +511,29 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
               borderRadius: '12px',
               maxWidth: '85%',
             }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {msg.role === 'user' ? 'You' : 'OmniTutor'}
+                {msg.role === 'assistant' && msg.model_used && (
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '1px 7px',
+                    borderRadius: '99px',
+                    fontWeight: 600,
+                    letterSpacing: '0.5px',
+                    background: msg.model_used.includes('mini') ? 'rgba(52, 211, 153, 0.15)' 
+                              : msg.model_used.includes('gpt-4o') ? 'rgba(99, 102, 241, 0.15)'
+                              : 'rgba(251, 191, 36, 0.15)',
+                    color: msg.model_used.includes('mini') ? '#34d399'
+                         : msg.model_used.includes('gpt-4o') ? '#818cf8'
+                         : '#fbbf24',
+                    border: `1px solid ${msg.model_used.includes('mini') ? '#34d39933' : msg.model_used.includes('gpt-4o') ? '#818cf833' : '#fbbf2433'}`,
+                    textTransform: 'none',
+                  }}>
+                    {msg.model_used.includes('mini') ? '⚡ Fast' 
+                   : msg.model_used.includes('gpt-4o') ? '👁️ Vision'
+                   : '🧠 Power'}
+                  </span>
+                )}
               </div>
               {/* Show uploaded image if present */}
               {msg.imagePreview && (
@@ -614,6 +641,7 @@ function StatsDashboard({ onBack }) {
     { label: 'Science',     icon: '🔬', color: '#22d3ee', value: stats.questions.science },
     { label: 'English',     icon: '📖', color: '#fbbf24', value: stats.questions.english },
     { label: 'Gen. Knowledge', icon: '🌍', color: '#60a5fa', value: stats.questions.gk },
+    { label: 'Finance',     icon: '💰', color: '#34d399', value: stats.questions.finance },
   ] : [];
 
   const tierData = stats ? [

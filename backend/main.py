@@ -89,6 +89,7 @@ class QueryResponse(BaseModel):
     new_level: int = 1
     streak_count: int = 0
     new_badges: List[str] = []
+    model_used: str = ""
 
 class ChatMessageResponse(BaseModel):
     role: str
@@ -100,6 +101,7 @@ SUBJECT_KEYS = {
     "science": "science",
     "english": "english",
     "general knowledge": "gk",
+    "finance": "finance",
 }
 
 YOUNG_LEVELS = [
@@ -361,7 +363,7 @@ async def submit_query(
         )
 
     # Call AI using the enhanced query
-    answer = await run_inference(enhanced_query, system_prompt, req.image_base64)
+    answer, model_used = await run_inference(enhanced_query, system_prompt, req.image_base64)
 
     # Save AI response to DB
     ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer, subject=req.subject)
@@ -389,7 +391,8 @@ async def submit_query(
         new_xp=current_user.xp,
         new_level=current_user.level,
         streak_count=current_user.streak_count,
-        new_badges=new_badges
+        new_badges=new_badges,
+        model_used=model_used
     )
 
 @app.get("/api/stats")
@@ -403,6 +406,7 @@ def get_stats():
             "science": get_counter("questions:science"),
             "english": get_counter("questions:english"),
             "gk": get_counter("questions:gk"),
+            "finance": get_counter("questions:finance"),
         },
         "tiers": {
             "school": get_counter("tier:school"),

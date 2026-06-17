@@ -224,6 +224,7 @@ body {
 .subject-card.science { --card-gradient: linear-gradient(135deg, var(--science-start), var(--science-end)); background: rgba(8,145,178,0.08); border-color: rgba(8,145,178,0.2); }
 .subject-card.english { --card-gradient: linear-gradient(135deg, var(--english-start), var(--english-end)); background: rgba(217,119,6,0.08); border-color: rgba(217,119,6,0.2); }
 .subject-card.gk      { --card-gradient: linear-gradient(135deg, var(--gk-start), var(--gk-end)); background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.2); }
+.subject-card.finance { --card-gradient: linear-gradient(135deg, #065f46, #10b981); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
 
 .subject-icon {
   font-size: 3rem;
@@ -245,6 +246,7 @@ body {
 .subject-card.science h2 { color: #22d3ee; }
 .subject-card.english h2 { color: #fbbf24; }
 .subject-card.gk h2      { color: #60a5fa; }
+.subject-card.finance h2 { color: #34d399; }
 
 .subject-card p {
   font-size: 0.9rem;
