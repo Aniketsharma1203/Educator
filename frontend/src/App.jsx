@@ -473,7 +473,16 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
             </button>
           </div>
         )}
-        <button className="back-btn" onClick={onBack} style={{ marginLeft: '0.5rem' }}>← Back</button>
+        <div style={{ display: 'flex', gap: '0.5rem', marginLeft: isYoung && profile ? '0.5rem' : 'auto' }}>
+          <button
+            className="back-btn"
+            onClick={onQuiz}
+            style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', borderColor: 'transparent', color: '#fff' }}
+          >
+            📝 Test
+          </button>
+          <button className="back-btn" onClick={onBack}>← Back</button>
+        </div>
       </div>
 
       {/* Trophies Panel */}
@@ -811,6 +820,361 @@ function AdminDashboard({ onBack, token }) {
 }
 
 /* ─── App Root ───────────────────────────────────────────────────────── */
+/* ─── Quiz Component ─────────────────────────────────────────────── */
+const QUIZ_DIFFICULTIES = ['easy', 'medium', 'hard'];
+const QUIZ_TYPES = [
+  { id: 'mcq',        label: 'Multiple Choice', icon: '🔘' },
+  { id: 'true_false', label: 'True / False',    icon: '✅' },
+  { id: 'fill_blank', label: 'Fill in Blank',   icon: '✏️' },
+  { id: 'mixed',      label: 'Mixed',           icon: '🌀' },
+];
+const QUIZ_COUNTS = [5, 10, 15, 20];
+
+function Quiz({ subject, level, token, onBack, onBadgesUnlocked }) {
+  const [phase, setPhase] = useState('setup');   // setup | loading | question | results
+  const [topic, setTopic] = useState('');
+  const [quizType, setQuizType] = useState('mcq');
+  const [count, setCount] = useState(5);
+  const [difficulty, setDifficulty] = useState('medium');
+  const [questions, setQuestions] = useState([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [answers, setAnswers] = useState([]);     // user's answers array
+  const [selected, setSelected]   = useState(null);
+  const [fillInput, setFillInput] = useState('');
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [timer, setTimer] = useState(30);
+  const [results, setResults] = useState(null);
+  const [loadErr, setLoadErr] = useState('');
+
+  // Timer logic
+  useEffect(() => {
+    if (phase !== 'question' || showFeedback) return;
+    if (timer <= 0) { handleAnswer(null); return; }
+    const t = setTimeout(() => setTimer(t => t - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timer, phase, showFeedback]);
+
+  const startQuiz = async () => {
+    if (!topic.trim()) return;
+    setPhase('loading');
+    setLoadErr('');
+    try {
+      const res = await axios.post(`${API}/api/quiz/generate`, {
+        subject: subject.name, topic, quiz_type: quizType, count, difficulty, level: level.level
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setQuestions(res.data.questions);
+      setAnswers([]);
+      setCurrentIdx(0);
+      setSelected(null);
+      setFillInput('');
+      setShowFeedback(false);
+      setTimer(30);
+      setPhase('question');
+    } catch (e) {
+      setLoadErr('Failed to generate quiz. Please try again.');
+      setPhase('setup');
+    }
+  };
+
+  const handleAnswer = (ans) => {
+    if (showFeedback) return;
+    const finalAns = ans !== undefined ? ans : selected;
+    setAnswers(prev => [...prev, finalAns]);
+    setShowFeedback(true);
+  };
+
+  const isCorrect = (q, ans) => {
+    if (ans === null || ans === undefined) return false;
+    if (q.type === 'fill_blank') return String(ans).trim().toLowerCase() === String(q.correct).trim().toLowerCase();
+    if (q.type === 'true_false') return String(ans).toLowerCase() === String(q.correct).toLowerCase();
+    return String(ans) === String(q.correct);
+  };
+
+  const nextQuestion = () => {
+    if (currentIdx + 1 >= questions.length) {
+      submitQuiz([...answers]);
+    } else {
+      setCurrentIdx(i => i + 1);
+      setSelected(null);
+      setFillInput('');
+      setShowFeedback(false);
+      setTimer(30);
+    }
+  };
+
+  const submitQuiz = async (finalAnswers) => {
+    try {
+      const res = await axios.post(`${API}/api/quiz/submit`, {
+        subject: subject.name, topic, quiz_type: quizType, difficulty,
+        questions, answers: finalAnswers
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setResults(res.data);
+      setPhase('results');
+      if (res.data.new_badges?.length > 0) onBadgesUnlocked(res.data.new_badges);
+      if (res.data.percentage >= 80) {
+        confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 }, colors: ['#fbbf24','#34d399','#a78bfa','#ec4899'] });
+      }
+    } catch { setResults({ score: 0, total: questions.length, percentage: 0, xp_earned: 0 }); setPhase('results'); }
+  };
+
+  const resetQuiz = () => { setPhase('setup'); setResults(null); setQuestions([]); setAnswers([]); };
+
+  const q = questions[currentIdx];
+  const getRank = (pct) => pct >= 90 ? { label: 'Excellent!', icon: '🥇', color: '#fbbf24' } : pct >= 70 ? { label: 'Good Job!', icon: '🥈', color: '#d1d5db' } : { label: 'Keep Going!', icon: '🥉', color: '#cd7c32' };
+
+  return (
+    <div className="chat-page page">
+      {/* Header */}
+      <div className="chat-header-card">
+        <span className="chat-header-icon">📝</span>
+        <div className="chat-header-text"><h2>Test Mode</h2><p>{subject.name} · {level.name}</p></div>
+        <button className="back-btn" onClick={onBack} style={{ marginLeft: 'auto' }}>← Back to Chat</button>
+      </div>
+
+      <div className="glass-panel" style={{ padding: '2rem', maxWidth: '700px', margin: '0 auto', width: '100%' }}>
+
+        {/* ── SETUP ── */}
+        {phase === 'setup' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem' }}>🏆</div>
+              <h2 style={{ margin: '0.5rem 0 0.25rem' }}>Create Your Quiz</h2>
+              <p style={{ color: 'var(--text-muted)' }}>Choose a topic and customise your test</p>
+            </div>
+
+            {loadErr && <div style={{ background: '#ef444433', color: '#fca5a5', padding: '0.75rem', borderRadius: '8px' }}>{loadErr}</div>}
+
+            <div className="form-group">
+              <label>Topic / Chapter</label>
+              <input className="input-field" placeholder={`e.g. Algebra, Photosynthesis, IFRS 16…`}
+                value={topic} onChange={e => setTopic(e.target.value)}
+                style={{ minHeight: '40px', padding: '0.8rem' }} />
+            </div>
+
+            <div className="form-group">
+              <label>Question Type</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.75rem' }}>
+                {QUIZ_TYPES.map(t => (
+                  <button key={t.id} onClick={() => setQuizType(t.id)} style={{
+                    padding: '0.75rem', borderRadius: '10px', cursor: 'pointer', border: '1px solid',
+                    borderColor: quizType === t.id ? '#a78bfa' : 'rgba(255,255,255,0.1)',
+                    background: quizType === t.id ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.03)',
+                    color: quizType === t.id ? '#a78bfa' : 'var(--text-muted)', fontWeight: 600,
+                    transition: 'all 0.2s',
+                  }}>{t.icon} {t.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div className="form-group">
+                <label>Number of Questions</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {QUIZ_COUNTS.map(n => (
+                    <button key={n} onClick={() => setCount(n)} style={{
+                      padding: '0.4rem 1rem', borderRadius: '99px', cursor: 'pointer', border: '1px solid',
+                      borderColor: count === n ? '#22d3ee' : 'rgba(255,255,255,0.1)',
+                      background: count === n ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.03)',
+                      color: count === n ? '#22d3ee' : 'var(--text-muted)', fontWeight: 600,
+                    }}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Difficulty</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {QUIZ_DIFFICULTIES.map(d => {
+                    const col = d === 'easy' ? '#34d399' : d === 'medium' ? '#fbbf24' : '#f87171';
+                    return (
+                      <button key={d} onClick={() => setDifficulty(d)} style={{
+                        padding: '0.4rem 0.85rem', borderRadius: '99px', cursor: 'pointer', border: '1px solid', textTransform: 'capitalize',
+                        borderColor: difficulty === d ? col : 'rgba(255,255,255,0.1)',
+                        background: difficulty === d ? `${col}22` : 'rgba(255,255,255,0.03)',
+                        color: difficulty === d ? col : 'var(--text-muted)', fontWeight: 600,
+                      }}>{d}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <button className="btn-submit" onClick={startQuiz} disabled={!topic.trim()}
+              style={{ marginTop: '0.5rem', opacity: !topic.trim() ? 0.5 : 1 }}>
+              🚀 Start Quiz
+            </button>
+          </div>
+        )}
+
+        {/* ── LOADING ── */}
+        {phase === 'loading' && (
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <div className="loader"><div className="spinner-ring" style={{ width: '48px', height: '48px', borderWidth: '3px' }} /></div>
+            <p style={{ marginTop: '1.5rem', color: 'var(--text-muted)' }}>Generating your {count} questions on <strong>{topic}</strong>…</p>
+          </div>
+        )}
+
+        {/* ── QUESTION ── */}
+        {phase === 'question' && q && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Progress + Timer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Question {currentIdx + 1} of {questions.length}</span>
+              <span style={{
+                fontSize: '1.1rem', fontWeight: 700,
+                color: timer <= 10 ? '#f87171' : timer <= 20 ? '#fbbf24' : '#34d399',
+                transition: 'color 0.3s'
+              }}>⏱ {timer}s</span>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '99px', overflow: 'hidden' }}>
+              <div style={{ width: `${((currentIdx) / questions.length) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#a78bfa,#ec4899)', transition: 'width 0.4s' }} />
+            </div>
+
+            {/* Question */}
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1.25rem' }}>
+              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>{q.question}</p>
+            </div>
+
+            {/* MCQ options */}
+            {(q.type === 'mcq') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {q.options.map((opt, i) => {
+                  let bg = 'rgba(255,255,255,0.04)', border = 'rgba(255,255,255,0.1)', color = 'inherit';
+                  if (showFeedback) {
+                    if (i === q.correct) { bg = 'rgba(52,211,153,0.15)'; border = '#34d399'; color = '#34d399'; }
+                    else if (i === selected && i !== q.correct) { bg = 'rgba(248,113,113,0.15)'; border = '#f87171'; color = '#f87171'; }
+                  } else if (selected === i) { bg = 'rgba(167,139,250,0.15)'; border = '#a78bfa'; color = '#a78bfa'; }
+                  return (
+                    <button key={i} onClick={() => !showFeedback && setSelected(i)} style={{
+                      padding: '0.85rem 1rem', borderRadius: '10px', border: `1px solid ${border}`, background: bg, color,
+                      textAlign: 'left', cursor: showFeedback ? 'default' : 'pointer', fontWeight: 500, transition: 'all 0.2s',
+                    }}>
+                      <span style={{ fontWeight: 700, marginRight: '0.6rem' }}>{['A','B','C','D'][i]}.</span>{opt}
+                      {showFeedback && i === q.correct && <span style={{ float: 'right' }}>✅</span>}
+                      {showFeedback && i === selected && i !== q.correct && <span style={{ float: 'right' }}>❌</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* True / False */}
+            {q.type === 'true_false' && (
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                {['true','false'].map(val => {
+                  const isCorrectVal = String(q.correct).toLowerCase() === val;
+                  let bg = 'rgba(255,255,255,0.04)', border = 'rgba(255,255,255,0.1)', color = 'inherit';
+                  if (showFeedback) {
+                    if (isCorrectVal) { bg = 'rgba(52,211,153,0.15)'; border = '#34d399'; color = '#34d399'; }
+                    else if (selected === val && !isCorrectVal) { bg = 'rgba(248,113,113,0.15)'; border = '#f87171'; color = '#f87171'; }
+                  } else if (selected === val) { bg = 'rgba(167,139,250,0.15)'; border = '#a78bfa'; color = '#a78bfa'; }
+                  return (
+                    <button key={val} onClick={() => !showFeedback && setSelected(val)} style={{
+                      flex: 1, padding: '1rem', borderRadius: '10px', border: `1px solid ${border}`, background: bg,
+                      color, fontWeight: 700, fontSize: '1.1rem', cursor: showFeedback ? 'default' : 'pointer', transition: 'all 0.2s',
+                    }}>
+                      {val === 'true' ? '✅ True' : '❌ False'}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Fill in blank */}
+            {q.type === 'fill_blank' && (
+              <div>
+                <input className="input-field" placeholder="Type your answer…"
+                  value={fillInput} onChange={e => setFillInput(e.target.value)}
+                  disabled={showFeedback}
+                  style={{ minHeight: '44px', padding: '0.8rem',
+                    borderColor: showFeedback ? (isCorrect(q, fillInput) ? '#34d399' : '#f87171') : undefined }}
+                />
+                {showFeedback && (
+                  <p style={{ marginTop: '0.5rem', color: isCorrect(q, fillInput) ? '#34d399' : '#f87171', fontWeight: 600 }}>
+                    {isCorrect(q, fillInput) ? '✅ Correct!' : `❌ Correct answer: "${q.correct}"`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Explanation (shown after answering) */}
+            {showFeedback && (
+              <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '1rem' }}>
+                <p style={{ margin: 0, color: '#a5b4fc' }}><strong>💡 Explanation:</strong> {q.explanation}</p>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!showFeedback ? (
+              <button className="btn-submit" onClick={() => handleAnswer(q.type === 'fill_blank' ? fillInput : selected)}
+                disabled={selected === null && !fillInput.trim()}>
+                Submit Answer
+              </button>
+            ) : (
+              <button className="btn-submit" onClick={nextQuestion}>
+                {currentIdx + 1 >= questions.length ? '📊 View Results' : 'Next Question →'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── RESULTS ── */}
+        {phase === 'results' && results && (() => {
+          const rank = getRank(results.percentage);
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'center' }}>
+              <div>
+                <div style={{ fontSize: '4rem' }}>{rank.icon}</div>
+                <h2 style={{ color: rank.color, margin: '0.5rem 0 0.25rem' }}>{rank.label}</h2>
+                <p style={{ color: 'var(--text-muted)' }}>{topic} · {difficulty}</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>
+                {[
+                  { label: 'Score', value: `${results.score}/${results.total}`, color: rank.color },
+                  { label: 'Accuracy', value: `${results.percentage}%`, color: results.percentage >= 80 ? '#34d399' : '#fbbf24' },
+                  { label: 'XP Earned', value: `+${results.xp_earned}`, color: '#a78bfa' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-question review */}
+              <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                {questions.map((q, i) => {
+                  const correct = isCorrect(q, answers[i]);
+                  return (
+                    <div key={i} style={{ padding: '0.75rem', borderRadius: '10px', border: '1px solid',
+                      borderColor: correct ? '#34d39933' : '#f8717133',
+                      background: correct ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                        <span>{correct ? '✅' : '❌'}</span>
+                        <span style={{ fontSize: '0.9rem' }}>{q.question}</span>
+                      </div>
+                      {!correct && <p style={{ margin: '0.4rem 0 0 1.6rem', fontSize: '0.8rem', color: '#34d399' }}>Correct: {Array.isArray(q.options) ? q.options[q.correct] : String(q.correct)}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button className="btn-submit" onClick={resetQuiz} style={{ flex: 1 }}>🔄 New Quiz</button>
+                <button className="btn-submit" onClick={onBack}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  ← Back to Chat
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
@@ -879,12 +1243,14 @@ export default function App() {
     window.history.pushState({ view: newView, subject: newSubject, level: newLevel }, '');
   };
 
-  const goHome = () => navigate(token ? 'dashboard' : 'auth');
-  const pickSubject = (s) => navigate('classSelector', s, null);
-  const pickLevel  = (l) => navigate('chat', subject, l);
+  const goHome       = () => navigate(token ? 'dashboard' : 'auth');
+  const pickSubject  = (s) => navigate('classSelector', s, null);
+  const pickLevel    = (l) => navigate('chat', subject, l);
   const backToClasses = () => navigate('classSelector', subject, null);
-  const openStats = () => navigate(view === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats', subject, level);
-  const openAdmin = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
+  const goToQuiz     = () => navigate('quiz', subject, level);
+  const backToChat   = () => navigate('chat', subject, level);
+  const openStats    = () => navigate(view === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats', subject, level);
+  const openAdmin    = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
   
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);
@@ -909,7 +1275,8 @@ export default function App() {
         
         {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} />}
         {view === 'classSelector' && token && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
-        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} />}
+        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} onQuiz={goToQuiz} />}
+        {view === 'quiz'          && token && subject && level && <Quiz subject={subject} level={level} token={token} onBack={backToChat} onBadgesUnlocked={setBadgePopup} />}
         
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
         {view === 'admin'         && token && user?.is_admin && <AdminDashboard onBack={goHome} token={token} />}

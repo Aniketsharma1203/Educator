@@ -31,3 +31,19 @@ class ChatMessage(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="messages")
+
+class QuizResult(Base):
+    __tablename__ = "quiz_results"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"))
+    subject    = Column(String)
+    topic      = Column(String)
+    quiz_type  = Column(String)   # 'mcq', 'true_false', 'fill_blank', 'mixed'
+    difficulty = Column(String)   # 'easy', 'medium', 'hard'
+    score      = Column(Integer)  # number of correct answers
+    total      = Column(Integer)  # total questions in quiz
+    xp_earned  = Column(Integer, default=0)
+    timestamp  = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])

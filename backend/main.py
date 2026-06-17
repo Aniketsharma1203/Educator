@@ -121,6 +121,8 @@ BADGE_DEFINITIONS = [
     {"id": "hot_streak",    "name": "Hot Streak 🔥",       "desc": "Maintain a 3-day streak"},
     {"id": "star_student",  "name": "Star Student 🌟",     "desc": "Reach Scholar level"},
     {"id": "multi_subject", "name": "Big Brain 🧠",        "desc": "Ask in 3 different subjects"},
+    {"id": "test_taker",   "name": "Test Taker 📝",       "desc": "Complete your first quiz"},
+    {"id": "quiz_master",  "name": "Quiz Master 🏅",      "desc": "Score 100% on any quiz"},
 ]
 
 def calc_level(xp: int) -> int:
@@ -451,3 +453,178 @@ def get_admin_stats(current_user: models.User = Depends(get_current_user), db: S
             "streak": u.streak_count or 0,
         })
     return {"users": user_stats}
+
+# ── Quiz Endpoints ─────────────────────────────────────────────────────────────
+
+import json, re as _re
+
+class QuizGenerateRequest(BaseModel):
+    subject: str
+    topic: str
+    quiz_type: str   # 'mcq', 'true_false', 'fill_blank', 'mixed'
+    count: int = 5   # number of questions
+    difficulty: str = "medium"  # 'easy', 'medium', 'hard'
+    level: str = "High School"
+
+class QuizSubmitRequest(BaseModel):
+    subject: str
+    topic: str
+    quiz_type: str
+    difficulty: str
+    questions: list  # list of question objects from generate
+    answers: list    # user's answers indexed by question id
+
+@app.post("/api/quiz/generate")
+async def generate_quiz(req: QuizGenerateRequest, current_user: models.User = Depends(get_current_user)):
+    type_map = {
+        "mcq":        "multiple choice (4 options labelled A, B, C, D)",
+        "true_false": "True/False (boolean)",
+        "fill_blank": "fill in the blank (short one-word or one-phrase answer)",
+        "mixed":      "a mix of multiple choice (4 options), True/False, and fill in the blank",
+    }
+    q_type_desc = type_map.get(req.quiz_type, "multiple choice")
+
+    prompt = f"""You are an expert educator generating a quiz.
+
+Create exactly {req.count} {q_type_desc} questions about "{req.topic}" in the subject "{req.subject}".
+The student level is: {req.level}. Difficulty: {req.difficulty}.
+
+Return ONLY valid JSON with no extra text, no markdown, no code fences. Use this exact structure:
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "type": "mcq",
+      "question": "Question text here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct": 0,
+      "explanation": "Brief explanation of the correct answer."
+    }},
+    {{
+      "id": 2,
+      "type": "true_false",
+      "question": "Statement to evaluate.",
+      "correct": true,
+      "explanation": "Brief explanation."
+    }},
+    {{
+      "id": 3,
+      "type": "fill_blank",
+      "question": "The ___ is the powerhouse of the cell.",
+      "correct": "mitochondria",
+      "explanation": "Brief explanation."
+    }}
+  ]
+}}
+
+For mcq: correct is the 0-based index of the correct option.
+For true_false: correct is true or false.
+For fill_blank: correct is the expected answer string (case-insensitive match will be used).
+Generate all {req.count} questions now."""
+
+    raw, _ = await run_inference(prompt, "You are an expert quiz generator. Return only valid JSON.", None)
+
+    # Strip any markdown code fences if the model added them
+    cleaned = _re.sub(r"```(?:json)?|```", "", raw).strip()
+    try:
+        data = json.loads(cleaned)
+        return {"questions": data["questions"]}
+    except Exception:
+        raise HTTPException(status_code=500, detail=f"Quiz generation failed: {raw[:300]}")
+
+
+@app.post("/api/quiz/submit")
+def submit_quiz(req: QuizSubmitRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    questions = req.questions
+    answers   = req.answers   # list: each element is the user's answer for that question index
+
+    score = 0
+    for i, q in enumerate(questions):
+        if i >= len(answers):
+            continue
+        user_ans = answers[i]
+        correct  = q.get("correct")
+
+        if q.get("type") == "fill_blank":
+            if str(user_ans).strip().lower() == str(correct).strip().lower():
+                score += 1
+        elif q.get("type") == "true_false":
+            if str(user_ans).lower() == str(correct).lower():
+                score += 1
+        else:  # mcq
+            if str(user_ans) == str(correct):
+                score += 1
+
+    total = len(questions)
+    pct   = (score / total * 100) if total > 0 else 0
+
+    # XP calculation
+    xp_earned = score * 5
+    if pct >= 80:
+        xp_earned += 20
+    if pct == 100:
+        xp_earned += 50
+
+    # Update user XP & badges
+    new_badges = []
+    current_user.xp = (current_user.xp or 0) + xp_earned
+    current_user.level = calc_level(current_user.xp)
+
+    earned = set(b for b in (current_user.badges or "").split(",") if b)
+
+    # test_taker badge
+    quiz_count = db.query(models.QuizResult).filter(models.QuizResult.user_id == current_user.id).count()
+    if quiz_count == 0 and "test_taker" not in earned:
+        earned.add("test_taker")
+        new_badges.append("test_taker")
+
+    # quiz_master badge
+    if pct == 100 and "quiz_master" not in earned:
+        earned.add("quiz_master")
+        new_badges.append("quiz_master")
+
+    current_user.badges = ",".join(earned)
+
+    # Save result
+    result = models.QuizResult(
+        user_id=current_user.id,
+        subject=req.subject,
+        topic=req.topic,
+        quiz_type=req.quiz_type,
+        difficulty=req.difficulty,
+        score=score,
+        total=total,
+        xp_earned=xp_earned,
+    )
+    db.add(result)
+    db.commit()
+
+    return {
+        "score": score,
+        "total": total,
+        "percentage": round(pct, 1),
+        "xp_earned": xp_earned,
+        "new_xp": current_user.xp,
+        "new_level": current_user.level,
+        "new_badges": new_badges,
+    }
+
+
+@app.get("/api/quiz/history")
+def get_quiz_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    results = db.query(models.QuizResult)\
+        .filter(models.QuizResult.user_id == current_user.id)\
+        .order_by(models.QuizResult.timestamp.desc())\
+        .limit(20).all()
+    return [
+        {
+            "subject": r.subject,
+            "topic": r.topic,
+            "score": r.score,
+            "total": r.total,
+            "percentage": round(r.score / r.total * 100, 1) if r.total else 0,
+            "xp_earned": r.xp_earned,
+            "timestamp": r.timestamp.isoformat(),
+        }
+        for r in results
+    ]
