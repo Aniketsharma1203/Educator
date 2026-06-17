@@ -15,8 +15,12 @@ from database import engine, get_db
 from auth import get_password_hash, verify_password, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from dotenv import load_dotenv
 from sqlalchemy import func
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 load_dotenv()
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -75,6 +79,7 @@ class QueryRequest(BaseModel):
     question: str
     level: str
     subject: Optional[str] = "General"
+    image_base64: Optional[str] = None
 
 class QueryResponse(BaseModel):
     status: str
@@ -236,11 +241,35 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
+    access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+@app.post("/api/auth/google")
+def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
+    try:
+        if not GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=500, detail="Google Auth is not configured on the server")
+            
+        # Verify the Google token
+        idinfo = id_token.verify_oauth2_token(req.token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        email = idinfo['email']
+        
+        # Check if user exists
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if not user:
+            # Auto-signup the user
+            user = models.User(email=email, hashed_password="") # No password needed
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+        access_token = create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
 
 @app.get("/api/auth/me", response_model=UserResponse)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
@@ -332,7 +361,7 @@ async def submit_query(
         )
 
     # Call AI using the enhanced query
-    answer = await run_inference(enhanced_query, system_prompt)
+    answer = await run_inference(enhanced_query, system_prompt, req.image_base64)
 
     # Save AI response to DB
     ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer, subject=req.subject)

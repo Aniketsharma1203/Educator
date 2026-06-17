@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import confetti from 'canvas-confetti';
+import { GoogleLogin } from '@react-oauth/google';
 import 'katex/dist/katex.min.css';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -181,6 +182,22 @@ function Auth({ onAuthSuccess }) {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/api/auth/google`, {
+        token: credentialResponse.credential
+      });
+      localStorage.setItem('token', res.data.access_token);
+      onAuthSuccess(res.data.access_token);
+    } catch (err) {
+      setError('Google Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
       <div className="glass-panel" style={{ maxWidth: '400px', width: '100%', padding: '2rem' }}>
@@ -215,11 +232,26 @@ function Auth({ onAuthSuccess }) {
               style={{ minHeight: '40px', padding: '0.8rem' }}
             />
           </div>
-          <button className="btn-submit" disabled={loading} style={{ marginTop: '1rem' }}>
+            <button className="btn-submit" disabled={loading} style={{ marginTop: '1rem' }}>
             {loading ? '⏳ Please wait...' : (isLogin ? 'Login' : 'Sign Up')}
           </button>
         </form>
 
+        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+            <span style={{ padding: '0 1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>OR</span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Google Login failed.')}
+              theme="filled_black"
+              shape="pill"
+            />
+          </div>
+        </div>
         <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)' }}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <span 
@@ -301,8 +333,11 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [profile, setProfile] = useState(null);
   const [showTrophies, setShowTrophies] = useState(false);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const isYoung = YOUNG_LEVELS.includes(level.level);
   const chatEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const fetchProfile = async () => {
     try {
@@ -331,21 +366,47 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, status]);
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+      setImageBase64(reader.result.split(',')[1]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    setImageBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!question.trim()) return;
+    if (!question.trim() && !imageBase64) return;
     
-    const userQ = question;
+    const userQ = question || (imageBase64 ? 'Please scan this image and explain.' : '');
     setQuestion('');
     setStatus('processing');
     setErrorMsg('');
     
-    const tempHistory = [...history, { role: 'user', content: userQ, timestamp: new Date().toISOString() }];
+    // Create optimistic history entry
+    const userContent = imageBase64 
+      ? `${userQ}\n\n![Uploaded Image](${imagePreview})` 
+      : userQ;
+    
+    const tempHistory = [...history, { role: 'user', content: userContent, timestamp: new Date().toISOString() }];
     setHistory(tempHistory);
+    
+    const payloadImage = imageBase64;
+    removeImage(); // clear image immediately from input
+
     
     try {
       const res = await axios.post(`${API}/api/query`, 
-        { question: userQ, level: level.level, subject: subject.name },
+        { question: userQ, level: level.level, subject: subject.name, image_base64: payloadImage },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -471,6 +532,12 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
         </div>
 
         <form onSubmit={handleSubmit} style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          {imagePreview && (
+            <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.5rem' }}>
+              <img src={imagePreview} alt="Upload preview" style={{ height: '80px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }} />
+              <button type="button" onClick={removeImage} style={{ position: 'absolute', top: '-8px', right: '-8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✕</button>
+            </div>
+          )}
           <div className="form-group" style={{ marginBottom: '0.5rem' }}>
             <textarea 
               className="input-field" 
@@ -488,8 +555,14 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked }) {
             />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Press Enter to send, Shift+Enter for new line</span>
-            <button className="btn-submit" disabled={status === 'processing' || !question.trim()} style={{ margin: 0, padding: '0.8rem 2rem', width: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} style={{ display: 'none' }} id="image-upload" />
+              <label htmlFor="image-upload" style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                📎 Attach Image
+              </label>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Press Enter to send, Shift+Enter for new line</span>
+            </div>
+            <button className="btn-submit" disabled={status === 'processing' || (!question.trim() && !imageBase64)} style={{ margin: 0, padding: '0.8rem 2rem', width: 'auto' }}>
               Send
             </button>
           </div>
