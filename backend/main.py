@@ -223,13 +223,14 @@ def root():
 
 @app.post("/api/auth/signup", response_model=UserResponse)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    clean_email = user.email.strip().lower()
+    db_user = db.query(models.User).filter(models.User.email == clean_email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = get_password_hash(user.password)
-    is_admin = (user.email.lower() == "nanhuaniket03@gmail.com")
-    new_user = models.User(email=user.email, hashed_password=hashed_password, is_admin=is_admin)
+    is_admin = (clean_email == "nanhuaniket03@gmail.com")
+    new_user = models.User(email=clean_email, hashed_password=hashed_password, is_admin=is_admin)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -237,7 +238,8 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    clean_email = form_data.username.strip().lower()
+    user = db.query(models.User).filter(models.User.email == clean_email).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -259,7 +261,7 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
             
         # Verify the Google token
         idinfo = id_token.verify_oauth2_token(req.token, google_requests.Request(), GOOGLE_CLIENT_ID)
-        email = idinfo['email']
+        email = idinfo['email'].strip().lower()
         
         # Check if user exists
         user = db.query(models.User).filter(models.User.email == email).first()

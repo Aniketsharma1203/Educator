@@ -159,7 +159,7 @@ function Auth({ onAuthSuccess }) {
     try {
       if (isLogin) {
         const formData = new URLSearchParams();
-        formData.append('username', email);
+        formData.append('username', email.trim().toLowerCase());
         formData.append('password', password);
         
         const res = await axios.post(`${API}/api/auth/login`, formData, {
@@ -168,7 +168,7 @@ function Auth({ onAuthSuccess }) {
         localStorage.setItem('token', res.data.access_token);
         onAuthSuccess(res.data.access_token);
       } else {
-        await axios.post(`${API}/api/auth/signup`, { email, password });
+        await axios.post(`${API}/api/auth/signup`, { email: email.trim().toLowerCase(), password });
         setIsLogin(true); // Switch to login after successful signup
         setError('Signup successful! Please login.');
       }
