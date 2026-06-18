@@ -20,6 +20,8 @@ FAST_MODEL   = "gpt-4o-mini"
 POWER_MODEL  = "Llama-3.3-70B-Instruct"
 # Vision model: gpt-4o — for image-based questions
 VISION_MODEL = "gpt-4o"
+# Coding model: gpt-4o — best for programming and algorithms
+CODING_MODEL = "gpt-4o"
 
 # Keywords that signal a HARD question requiring deep reasoning
 HARD_KEYWORDS = [
@@ -70,7 +72,7 @@ def classify_difficulty(question: str) -> str:
     return "easy"
 
 
-async def run_inference(prompt: str, system_prompt: str, image_base64: str = None) -> tuple[str, str]:
+async def run_inference(prompt: str, system_prompt: str, image_base64: str = None, subject: str = None) -> tuple[str, str]:
     """
     Run AI inference with intelligent model routing.
     
@@ -78,6 +80,7 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
     
     Routing logic:
     - Image provided → gpt-4o (Vision)
+    - Subject Coding → gpt-4o (Coding)
     - Hard question   → Llama-3.3-70B-Instruct (Power)
     - Easy question   → gpt-4o-mini (Fast, higher rate limits)
     """
@@ -99,6 +102,12 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
                         }
                     ]
                 }
+            ]
+        elif subject and subject.lower() == "coding":
+            model = CODING_MODEL
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
             ]
         else:
             # Text route: classify difficulty and pick appropriate model

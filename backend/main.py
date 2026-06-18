@@ -221,6 +221,10 @@ def get_system_prompt(level: str, subject: str) -> str:
         "general knowledge": {
             "young": "You are a fun, curious guide exploring the world with a child. Use surprising facts, colorful descriptions, and simple analogies. Make learning feel like an adventure.",
             "advanced": "You are a multidisciplinary scholar. Draw on history, philosophy, geopolitics, and cultural studies to provide a comprehensive, nuanced, and intellectually rigorous response."
+        },
+        "coding": {
+            "young": "You are a fun coding buddy! Explain programming concepts using games, toys, or everyday examples. Keep code snippets very simple and easy to understand.",
+            "advanced": "You are an elite senior software engineer. Provide highly optimized, production-ready code with deep architectural insights, discussing computational complexity, design patterns, and best practices."
         }
     }
 
@@ -384,7 +388,7 @@ async def submit_query(
         )
 
     # Call AI using the enhanced query
-    answer, model_used = await run_inference(enhanced_query, system_prompt, req.image_base64)
+    answer, model_used = await run_inference(enhanced_query, system_prompt, req.image_base64, subject=req.subject)
 
     # Save AI response to DB
     ai_msg = models.ChatMessage(user_id=current_user.id, role="assistant", content=answer, subject=req.subject)
@@ -541,7 +545,7 @@ For true_false: correct is true or false.
 For fill_blank: correct is the expected answer string (case-insensitive match will be used).
 Generate all {req.count} questions now."""
 
-    raw, _ = await run_inference(prompt, "You are an expert quiz generator. Return only valid JSON.", None)
+    raw, _ = await run_inference(prompt, "You are an expert quiz generator. Return only valid JSON.", None, subject=req.subject)
 
     # Strip any markdown code fences if the model added them
     cleaned = _re.sub(r"```(?:json)?|```", "", raw).strip()
@@ -651,22 +655,13 @@ def get_quiz_history(current_user: models.User = Depends(get_current_user), db: 
 # ── Flashcards ───────────────────────────────────────────────────────────────
 
 @app.post("/api/flashcards/generate")
-def generate_flashcards(req: FlashcardCreateRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def generate_flashcards(req: FlashcardCreateRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     system_prompt = "You are an expert tutor creating study materials. Return exactly 5 flashcards based on the provided topic and chat history. Output pure JSON format: a list of objects with 'front' (question/concept) and 'back' (answer/explanation). Example: [{\"front\": \"What is X?\", \"back\": \"X is Y\"}]. Return ONLY JSON, no markdown blocks."
     user_prompt = f"Topic: {req.topic}\n\nContext/Chat History:\n{req.history_context}"
 
-    payload = {
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.3,
-        "max_tokens": 1000
-    }
-
     try:
-        response = primary_client.complete(payload)
-        content = response.choices[0].message.content.strip()
+        content, _ = await run_inference(user_prompt, system_prompt, None, subject=req.subject)
+        content = content.strip()
         
         if content.startswith("```json"):
             content = content[7:-3]

@@ -16,6 +16,7 @@ const SUBJECTS = [
   { id: 'english', name: 'English', cls: 'english', icon: '📖', desc: 'Grammar, literature, creative writing — command the written word.', topics: ['Grammar', 'Literature', 'Essay Writing', 'Poetry', 'Linguistics'] },
   { id: 'general knowledge', name: 'General Knowledge', cls: 'gk', icon: '🌍', desc: 'History, geography, culture and everything that makes our world.', topics: ['History', 'Geography', 'Civics', 'Current Affairs', 'Philosophy'] },
   { id: 'finance', name: 'Finance', cls: 'finance', icon: '💰', desc: 'Accounting, valuation, derivatives and everything for CA & CFA students.', topics: ['Financial Accounting', 'Valuation', 'Derivatives', 'Corporate Finance', 'Risk Management', 'Taxation', 'Auditing', 'IFRS / GAAP'] },
+  { id: 'coding', name: 'Coding', cls: 'coding', icon: '💻', desc: 'Python, Web Dev, Algorithms & Data Structures.', topics: ['Python', 'JavaScript', 'Data Structures', 'Algorithms', 'Databases'] },
 ];
 
 const TIERS = [
