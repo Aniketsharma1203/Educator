@@ -19,6 +19,8 @@
   --english-end: #ea580c;
   --gk-start: #2563eb;
   --gk-end: #7c3aed;
+  --law-start: #ef4444;
+  --law-end: #b91c1c;
 }
 
 /* ─── Reset & Base ─────────────────────────────────────────────────── */
@@ -227,6 +229,7 @@ body {
 .subject-card.finance { --card-gradient: linear-gradient(135deg, #065f46, #10b981); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
 .subject-card.coding  { --card-gradient: linear-gradient(135deg, #9333ea, #ec4899); background: rgba(236,72,153,0.08); border-color: rgba(236,72,153,0.2); }
 .subject-card.agri    { --card-gradient: linear-gradient(135deg, #84cc16, #eab308); background: rgba(132,204,22,0.08); border-color: rgba(132,204,22,0.2); }
+.subject-card.law     { --card-gradient: linear-gradient(135deg, var(--law-start), var(--law-end)); background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
 
 .subject-icon {
   font-size: 3rem;
@@ -251,6 +254,7 @@ body {
 .subject-card.finance h2 { color: #34d399; }
 .subject-card.coding h2  { color: #f472b6; }
 .subject-card.agri h2    { color: #bef264; }
+.subject-card.law h2     { color: #f87171; }
 
 .subject-card p {
   font-size: 0.9rem;

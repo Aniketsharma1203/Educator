@@ -33,18 +33,22 @@ def test_redis_tracking_directly():
     # Get current counts
     initial_agri = get_counter("questions:agri")
     initial_coding = get_counter("questions:coding")
+    initial_law = get_counter("questions:law")
     
     # Simulate the tracking that happens in the query endpoint
     track("questions:agri")
     track("questions:coding")
+    track("questions:law")
     
     # Get updated counts
     new_agri = get_counter("questions:agri")
     new_coding = get_counter("questions:coding")
+    new_law = get_counter("questions:law")
     
     # Verify they incremented by 1
     assert new_agri == initial_agri + 1, "Agriculture stats did not increment"
     assert new_coding == initial_coding + 1, "Coding stats did not increment"
+    assert new_law == initial_law + 1, "Law stats did not increment"
 
 def test_stats_endpoint_returns_new_subjects():
     """
