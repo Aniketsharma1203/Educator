@@ -269,7 +269,7 @@ function Auth({ onAuthSuccess }) {
 }
 
 /* ─── Screen 1.5: Flashcards Dashboard & Study Mode ────────────────────── */
-function FlashcardsDashboard({ token, onBack }) {
+function FlashcardsDashboard({ token, onBack, onGoToChat }) {
   const [decks, setDecks] = useState([]);
   const [studyDeck, setStudyDeck] = useState(null);
   const [currentCardIdx, setCurrentCardIdx] = useState(0);
@@ -332,14 +332,14 @@ function FlashcardsDashboard({ token, onBack }) {
       ) : (
         <div className="subjects-grid">
           {decks.map(d => (
-            <div key={d.id} className="subject-card" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div key={d.id} className="subject-card" style={{ background: 'rgba(255,255,255,0.05)', cursor: 'pointer' }} onClick={() => onGoToChat(d.subject, d.topic)}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span className="topic-tag">{d.subject}</span>
                 <button onClick={(e) => { e.stopPropagation(); deleteDeck(d.id); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
               </div>
               <h3 style={{ margin: '1rem 0' }}>{d.topic}</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{d.cards.length} cards · {new Date(d.timestamp).toLocaleDateString()}</p>
-              <button className="back-btn" style={{ width: '100%', marginTop: '1rem', background: 'rgba(139,92,246,0.2)' }} onClick={() => { setStudyDeck(d); setCurrentCardIdx(0); setIsFlipped(false); }}>
+              <button className="back-btn" style={{ width: '100%', marginTop: '1rem', background: 'rgba(139,92,246,0.2)' }} onClick={(e) => { e.stopPropagation(); setStudyDeck(d); setCurrentCardIdx(0); setIsFlipped(false); }}>
                 Study Now
               </button>
             </div>
@@ -1468,6 +1468,19 @@ export default function App() {
   const openAdmin    = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
   const openFlashcards = () => navigate('flashcards', subject, level);
   
+  const navigateToChat = (subjectName, levelName) => {
+    const s = SUBJECTS.find(sub => sub.name === subjectName);
+    if (!s) return;
+    let foundLevel = null;
+    for (const tier of TIERS) {
+      const l = tier.classes.find(c => c.name === levelName);
+      if (l) { foundLevel = l; break; }
+    }
+    if (foundLevel) {
+      navigate('chat', s, foundLevel);
+    }
+  };
+  
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);
     navigate('dashboard');
@@ -1490,7 +1503,7 @@ export default function App() {
         {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
         
         {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} onViewFlashcards={openFlashcards} />}
-        {view === 'flashcards'    && token && <FlashcardsDashboard token={token} onBack={goHome} />}
+        {view === 'flashcards'    && token && <FlashcardsDashboard token={token} onBack={goHome} onGoToChat={navigateToChat} />}
         {view === 'classSelector' && token && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
         {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} onQuiz={goToQuiz} onViewFlashcards={openFlashcards} />}
         {view === 'quiz'          && token && subject && level && <Quiz subject={subject} level={level} token={token} onBack={backToChat} onBadgesUnlocked={setBadgePopup} />}
