@@ -18,6 +18,7 @@ const SUBJECTS = [
   { id: 'finance', name: 'Finance', cls: 'finance', icon: '💰', desc: 'Accounting, valuation, derivatives and everything for CA & CFA students.', topics: ['Financial Accounting', 'Valuation', 'Derivatives', 'Corporate Finance', 'Risk Management', 'Taxation', 'Auditing', 'IFRS / GAAP'] },
   { id: 'coding', name: 'Coding', cls: 'coding', icon: '💻', desc: 'Python, Web Dev, Algorithms & Data Structures.', topics: ['Python', 'JavaScript', 'Data Structures', 'Algorithms', 'Databases'] },
   { id: 'agriculture', name: 'Agriculture', cls: 'agri', icon: '🌾', desc: 'Farming, soil science, horticulture, and sustainable agriculture.', topics: ['Agronomy', 'Soil Science', 'Horticulture', 'Agribusiness', 'Sustainability'] },
+  { id: 'law', name: 'Law', cls: 'law', icon: '⚖️', desc: 'Legal concepts, statutes, constitutional law, and fairness.', topics: ['Constitutional Law', 'Contracts', 'Criminal Law', 'Torts', 'Legal Logic'] },
 ];
 
 const TIERS = [
