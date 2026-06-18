@@ -96,6 +96,23 @@ class ChatMessageResponse(BaseModel):
     content: str
     timestamp: datetime
 
+class FlashcardCreateRequest(BaseModel):
+    subject: str
+    topic: str
+    history_context: str
+
+class FlashcardResponse(BaseModel):
+    id: int
+    front: str
+    back: str
+
+class FlashcardDeckResponse(BaseModel):
+    id: int
+    subject: str
+    topic: str
+    timestamp: datetime
+    cards: List[FlashcardResponse] = []
+
 SUBJECT_KEYS = {
     "mathematics": "math",
     "science": "science",
@@ -630,3 +647,64 @@ def get_quiz_history(current_user: models.User = Depends(get_current_user), db: 
         }
         for r in results
     ]
+
+# ── Flashcards ───────────────────────────────────────────────────────────────
+
+@app.post("/api/flashcards/generate")
+def generate_flashcards(req: FlashcardCreateRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    system_prompt = "You are an expert tutor creating study materials. Return exactly 5 flashcards based on the provided topic and chat history. Output pure JSON format: a list of objects with 'front' (question/concept) and 'back' (answer/explanation). Example: [{\"front\": \"What is X?\", \"back\": \"X is Y\"}]. Return ONLY JSON, no markdown blocks."
+    user_prompt = f"Topic: {req.topic}\n\nContext/Chat History:\n{req.history_context}"
+
+    payload = {
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1000
+    }
+
+    try:
+        response = primary_client.complete(payload)
+        content = response.choices[0].message.content.strip()
+        
+        if content.startswith("```json"):
+            content = content[7:-3]
+        elif content.startswith("```"):
+            content = content[3:-3]
+        
+        cards_data = json.loads(content)
+        
+        deck = models.FlashcardDeck(user_id=current_user.id, subject=req.subject, topic=req.topic)
+        db.add(deck)
+        db.flush() 
+        
+        for c in cards_data:
+            fc = models.Flashcard(deck_id=deck.id, front=c.get('front',''), back=c.get('back',''))
+            db.add(fc)
+            
+        db.commit()
+        db.refresh(deck)
+        return {"status": "success", "deck_id": deck.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to generate flashcards: " + str(e))
+
+@app.get("/api/flashcards", response_model=List[FlashcardDeckResponse])
+def get_flashcards(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    decks = db.query(models.FlashcardDeck).filter(models.FlashcardDeck.user_id == current_user.id).order_by(models.FlashcardDeck.timestamp.desc()).all()
+    res = []
+    for d in decks:
+        cards = [{"id": c.id, "front": c.front, "back": c.back} for c in d.cards]
+        res.append({
+            "id": d.id, "subject": d.subject, "topic": d.topic, "timestamp": d.timestamp, "cards": cards
+        })
+    return res
+
+@app.delete("/api/flashcards/{deck_id}")
+def delete_deck(deck_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deck = db.query(models.FlashcardDeck).filter(models.FlashcardDeck.id == deck_id, models.FlashcardDeck.user_id == current_user.id).first()
+    if deck:
+        db.delete(deck)
+        db.commit()
+    return {"status": "ok"}

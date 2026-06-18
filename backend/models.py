@@ -47,3 +47,25 @@ class QuizResult(Base):
     timestamp  = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", foreign_keys=[user_id])
+
+class FlashcardDeck(Base):
+    __tablename__ = "flashcard_decks"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"))
+    subject    = Column(String)
+    topic      = Column(String)
+    timestamp  = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+    cards = relationship("Flashcard", back_populates="deck", cascade="all, delete")
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    deck_id    = Column(Integer, ForeignKey("flashcard_decks.id"))
+    front      = Column(Text)
+    back       = Column(Text)
+
+    deck = relationship("FlashcardDeck", back_populates="cards")

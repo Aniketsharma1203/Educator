@@ -267,10 +267,95 @@ function Auth({ onAuthSuccess }) {
   );
 }
 
-/* ─── Screen 1: Dashboard ────────────────────────────────────────────── */
-function Dashboard({ onSelect }) {
+/* ─── Screen 1.5: Flashcards Dashboard & Study Mode ────────────────────── */
+function FlashcardsDashboard({ token, onBack }) {
+  const [decks, setDecks] = useState([]);
+  const [studyDeck, setStudyDeck] = useState(null);
+  const [currentCardIdx, setCurrentCardIdx] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  useEffect(() => {
+    axios.get(`${API}/api/flashcards`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => setDecks(res.data)).catch(console.error);
+  }, [token]);
+
+  const deleteDeck = async (id) => {
+    await axios.delete(`${API}/api/flashcards/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    setDecks(decks.filter(d => d.id !== id));
+  };
+
+  if (studyDeck) {
+    const card = studyDeck.cards[currentCardIdx];
+    return (
+      <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div style={{ alignSelf: 'flex-start', margin: '1rem' }}>
+          <button className="back-btn" onClick={() => setStudyDeck(null)}>← Back to Decks</button>
+        </div>
+        <h2 style={{ marginBottom: '2rem' }}>{studyDeck.subject} - {studyDeck.topic}</h2>
+        <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Card {currentCardIdx + 1} of {studyDeck.cards.length}</div>
+        
+        <div className="flashcard-container" onClick={() => setIsFlipped(!isFlipped)}>
+          <div className={`flashcard ${isFlipped ? 'flipped' : ''}`}>
+            <div className="flashcard-face flashcard-front">
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase' }}>Question</span>
+              <div style={{ fontSize: '1.4rem', fontWeight: 600 }}>{card.front}</div>
+            </div>
+            <div className="flashcard-face flashcard-back">
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase' }}>Answer</span>
+              <div style={{ fontSize: '1.2rem' }}>{card.back}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+          <button className="back-btn" onClick={() => { setIsFlipped(false); setCurrentCardIdx(Math.max(0, currentCardIdx - 1)); }} disabled={currentCardIdx === 0}>Previous</button>
+          <button className="back-btn" onClick={() => { setIsFlipped(false); setCurrentCardIdx(Math.min(studyDeck.cards.length - 1, currentCardIdx + 1)); }} disabled={currentCardIdx === studyDeck.cards.length - 1}>Next</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', padding: '1rem' }}>
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        <h2>📇 My Flashcard Decks</h2>
+        <div style={{ width: '80px' }}></div>
+      </div>
+      
+      {decks.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
+          <span style={{ fontSize: '3rem' }}>📇</span>
+          <p>No flashcards yet. Ask the AI a question and click "Export -&gt; Generate Flashcards"!</p>
+        </div>
+      ) : (
+        <div className="subjects-grid">
+          {decks.map(d => (
+            <div key={d.id} className="subject-card" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span className="topic-tag">{d.subject}</span>
+                <button onClick={(e) => { e.stopPropagation(); deleteDeck(d.id); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
+              </div>
+              <h3 style={{ margin: '1rem 0' }}>{d.topic}</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{d.cards.length} cards · {new Date(d.timestamp).toLocaleDateString()}</p>
+              <button className="back-btn" style={{ width: '100%', marginTop: '1rem', background: 'rgba(139,92,246,0.2)' }} onClick={() => { setStudyDeck(d); setCurrentCardIdx(0); setIsFlipped(false); }}>
+                Study Now
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Screen 1: Dashboard ────────────────────────────────────────────── */
+function Dashboard({ onSelect, onViewFlashcards }) {
+  return (
+    <div className="page" style={{ position: 'relative' }}>
+      <button onClick={onViewFlashcards} className="back-btn" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10, background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.4)' }}>
+        📇 My Flashcards
+      </button>
       <div className="hero">
         <span className="hero-mascot">🎓</span>
         <h1>Learn Anything.<br />At Any Level.</h1>
@@ -358,6 +443,59 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.onresult = (event) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          setQuestion(prev => (prev + ' ' + finalTranscript).trim());
+        }
+      };
+      recognitionRef.current.onerror = (e) => { console.error(e); setIsRecording(false); };
+      recognitionRef.current.onend = () => setIsRecording(false);
+    }
+  }, []);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      if (!recognitionRef.current) return alert("Speech Recognition not supported in this browser.");
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
+  };
+
+  const generateFlashcards = async () => {
+    setShowExportMenu(false);
+    setStatus('processing');
+    try {
+      const context = history.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n');
+      await axios.post(`${API}/api/flashcards/generate`, {
+        subject: subject.name,
+        topic: level.name,
+        history_context: context
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      alert("Flashcards generated! Check your dashboard.");
+      setStatus('idle');
+    } catch (err) {
+      alert("Failed to generate flashcards.");
+      setStatus('idle');
+    }
+  };
 
   const exportPDF = () => {
     setShowExportMenu(false);
@@ -537,6 +675,8 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
                 <button onClick={exportPDF} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>📄 Save as PDF</button>
                 <button onClick={exportWord} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>📝 Word (.doc)</button>
                 <button onClick={exportMarkdown} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>⬇️ Markdown (.md)</button>
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '0.25rem 0' }}></div>
+                <button onClick={generateFlashcards} style={{ background:'transparent', border:'none', color:'#a78bfa', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 600 }} onMouseOver={e=>e.target.style.background='rgba(167,139,250,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>📇 Gen Flashcards</button>
               </div>
             )}
           </div>
@@ -660,7 +800,7 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
               <button type="button" onClick={removeImage} style={{ position: 'absolute', top: '-8px', right: '-8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✕</button>
             </div>
           )}
-          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+          <div className="form-group" style={{ marginBottom: '0.5rem', position: 'relative' }}>
             <textarea 
               className="input-field" 
               placeholder={`Ask anything about ${subject.name}…`} 
@@ -675,6 +815,12 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
                 }
               }}
             />
+            <button type="button" className={`mic-btn ${isRecording ? 'recording' : ''}`} onClick={toggleRecording} style={{
+              position: 'absolute', right: '1.5rem', bottom: '1.5rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+              width: '40px', height: '40px', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', zIndex: 10
+            }}>
+              🎙️
+            </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1319,6 +1465,7 @@ export default function App() {
   const backToChat   = () => navigate('chat', subject, level);
   const openStats    = () => navigate(view === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats', subject, level);
   const openAdmin    = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
+  const openFlashcards = () => navigate('flashcards', subject, level);
   
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);
@@ -1341,9 +1488,10 @@ export default function App() {
         
         {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
         
-        {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} />}
+        {view === 'dashboard'     && token && <Dashboard onSelect={pickSubject} onViewFlashcards={openFlashcards} />}
+        {view === 'flashcards'    && token && <FlashcardsDashboard token={token} onBack={goHome} />}
         {view === 'classSelector' && token && subject && <ClassSelector subject={subject} onSelect={pickLevel} onBack={goHome} />}
-        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} onQuiz={goToQuiz} />}
+        {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} onQuiz={goToQuiz} onViewFlashcards={openFlashcards} />}
         {view === 'quiz'          && token && subject && level && <Quiz subject={subject} level={level} token={token} onBack={backToChat} onBadgesUnlocked={setBadgePopup} />}
         
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
