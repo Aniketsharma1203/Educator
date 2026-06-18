@@ -7,7 +7,7 @@ import confetti from 'canvas-confetti';
 import { GoogleLogin } from '@react-oauth/google';
 import 'katex/dist/katex.min.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API = ''; // Using Vercel/Vite reverse proxy to bypass network blocks
 
 /* ─── Data ──────────────────────────────────────────────────────────── */
 const SUBJECTS = [
