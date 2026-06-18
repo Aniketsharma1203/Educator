@@ -22,8 +22,8 @@ POWER_MODEL  = "Llama-3.3-70B-Instruct"
 VISION_MODEL = "gpt-4o"
 # Coding model: gpt-4o — best for programming and algorithms
 CODING_MODEL = "gpt-4o"
-# Agriculture model: Mistral-large-2407 — great general knowledge, diversifies API usage
-AGRI_MODEL = "Mistral-large-2407"
+# Agriculture model: Meta-Llama-3.1-405B-Instruct — massive 405B model, excellent reasoning
+AGRI_MODEL = "Meta-Llama-3.1-405B-Instruct"
 
 # Keywords that signal a HARD question requiring deep reasoning
 HARD_KEYWORDS = [
