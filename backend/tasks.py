@@ -24,6 +24,8 @@ VISION_MODEL = "gpt-4o"
 CODING_MODEL = "gpt-4o"
 # Agriculture model: Meta-Llama-3.1-405B-Instruct — massive 405B model, excellent reasoning
 AGRI_MODEL = "Meta-Llama-3.1-405B-Instruct"
+# Law model: gpt-4o — scored in 90th percentile on Uniform Bar Exam
+LAW_MODEL = "gpt-4o"
 
 # Keywords that signal a HARD question requiring deep reasoning
 HARD_KEYWORDS = [
@@ -83,7 +85,8 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
     Routing logic:
     - Image provided → gpt-4o (Vision)
     - Subject Coding → gpt-4o (Coding)
-    - Subject Agriculture → Mistral-large-2407 (Agri)
+    - Subject Agriculture → Meta-Llama-3.1-405B-Instruct (Agri)
+    - Subject Law → gpt-4o (Law)
     - Hard question   → Llama-3.3-70B-Instruct (Power)
     - Easy question   → gpt-4o-mini (Fast, higher rate limits)
     """
@@ -114,6 +117,12 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
             ]
         elif subject and subject.lower() == "agriculture":
             model = AGRI_MODEL
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        elif subject and subject.lower() == "law":
+            model = LAW_MODEL
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}

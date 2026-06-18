@@ -43,6 +43,9 @@ STATS = {
     "questions:science": 0,
     "questions:english": 0,
     "questions:gk": 0,
+    "questions:coding": 0,
+    "questions:agri": 0,
+    "questions:law": 0,
     "questions:other": 0,
     "tier:school": 0,
     "tier:highschool": 0,
@@ -119,6 +122,9 @@ SUBJECT_KEYS = {
     "english": "english",
     "general knowledge": "gk",
     "finance": "finance",
+    "coding": "coding",
+    "agriculture": "agri",
+    "law": "law"
 }
 
 YOUNG_LEVELS = [
@@ -229,6 +235,10 @@ def get_system_prompt(level: str, subject: str) -> str:
         "agriculture": {
             "young": "You are a friendly farmer and nature guide! Explain how plants grow, how soil works, and how food gets to our table using fun stories, animals, and simple analogies.",
             "advanced": "You are an expert agronomist and agricultural scientist. Provide detailed, scientifically rigorous explanations involving soil chemistry, sustainable farming techniques, crop genetics, and agribusiness economics."
+        },
+        "law": {
+            "young": "You are a friendly community helper explaining rules and laws! Explain things like fairness, rules, and how society works using simple examples from a playground or classroom.",
+            "advanced": "You are a distinguished legal scholar and professor of Law. Provide highly accurate, logical, and structured explanations of legal concepts, statutes, and case law. Emphasize reasoning and avoid giving actionable legal advice. Use bolding and headers for clarity."
         }
     }
 
@@ -443,6 +453,9 @@ def get_stats():
             "english": get_counter("questions:english"),
             "gk": get_counter("questions:gk"),
             "finance": get_counter("questions:finance"),
+            "coding": get_counter("questions:coding"),
+            "agriculture": get_counter("questions:agri"),
+            "law": get_counter("questions:law"),
         },
         "tiers": {
             "school": get_counter("tier:school"),

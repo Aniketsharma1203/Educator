@@ -872,6 +872,9 @@ function StatsDashboard({ onBack }) {
     { label: 'English',     icon: '📖', color: '#fbbf24', value: stats.questions.english },
     { label: 'Gen. Knowledge', icon: '🌍', color: '#60a5fa', value: stats.questions.gk },
     { label: 'Finance',     icon: '💰', color: '#34d399', value: stats.questions.finance },
+    { label: 'Coding',      icon: '💻', color: '#ec4899', value: stats.questions.coding || 0 },
+    { label: 'Agriculture', icon: '🌾', color: '#bef264', value: stats.questions.agriculture || 0 },
+    { label: 'Law',         icon: '⚖️', color: '#f87171', value: stats.questions.law || 0 },
   ] : [];
 
   const tierData = stats ? [
@@ -922,7 +925,7 @@ function StatsDashboard({ onBack }) {
             </div>
             <div className="kpi-card kpi-subjects">
               <div className="kpi-icon">📚</div>
-              <div className="kpi-value">4</div>
+              <div className="kpi-value">8</div>
               <div className="kpi-label">Active Subjects</div>
             </div>
             <div className="kpi-card kpi-model">

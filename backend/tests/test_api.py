@@ -122,7 +122,7 @@ class TestAuth:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestQuery:
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="Test answer from AI.")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("Test answer from AI.", "mock-model"))
     def test_query_success(self, mock_ai, client, regular_user_token):
         res = client.post("/api/query",
             json={"question": "What is 2+2?", "level": "Primary (Class 1-5)", "subject": "Mathematics"},
@@ -136,7 +136,7 @@ class TestQuery:
         res = client.post("/api/query", json={"question": "hi", "level": "Primary (Class 1-5)", "subject": "Science"})
         assert res.status_code == 401
 
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="ok")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("ok", "mock-model"))
     def test_rate_limit_enforced(self, mock_ai, client):
         """Sign up a fresh user and hammer 4 requests — 4th should be 429."""
         client.post("/api/auth/signup", json={"email": "ratelimit@example.com", "password": "pass123"})
@@ -161,7 +161,7 @@ class TestQuery:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestChatHistory:
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="A math answer.")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("A math answer.", "mock-model"))
     def test_history_is_subject_scoped(self, mock_ai, client):
         """Maths history should not appear in Science history."""
         client.post("/api/auth/signup", json={"email": "historytest@example.com", "password": "pass123"})
@@ -202,7 +202,7 @@ class TestChatHistory:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestGamification:
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="Fun science answer!")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("Fun science answer!", "mock-model"))
     def test_xp_awarded_for_young_level(self, mock_ai, client):
         """Asking a question as a young user should earn XP."""
         client.post("/api/auth/signup", json={"email": "kiduser@example.com", "password": "pass123"})
@@ -221,7 +221,7 @@ class TestGamification:
         assert data["new_level"] == 1
         assert data["streak_count"] == 1
 
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="ok")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("ok", "mock-model"))
     def test_xp_increments_each_question(self, mock_ai, client):
         """Each question should award +10 XP and accumulate correctly."""
         client.post("/api/auth/signup", json={"email": "xpinc@example.com", "password": "pass123"})
@@ -245,7 +245,7 @@ class TestGamification:
         assert profile_res.json()["xp"] == 30
         assert profile_res.json()["level"] == 1
 
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="PhD answer.")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("PhD answer.", "mock-model"))
     def test_no_xp_for_advanced_level(self, mock_ai, client):
         """Gamification should NOT activate for university/PhD users."""
         client.post("/api/auth/signup", json={"email": "phduser@example.com", "password": "pass123"})
@@ -259,7 +259,7 @@ class TestGamification:
         assert res.status_code == 200
         assert res.json()["xp_earned"] == 0
 
-    @patch("main.run_inference", new_callable=AsyncMock, return_value="ok")
+    @patch("main.run_inference", new_callable=AsyncMock, return_value=("ok", "mock-model"))
     def test_first_step_badge_unlocked(self, mock_ai, client):
         """First question should unlock the 'first_step' badge."""
         client.post("/api/auth/signup", json={"email": "badgeuser@example.com", "password": "pass123"})
