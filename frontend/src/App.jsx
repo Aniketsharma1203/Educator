@@ -442,6 +442,7 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
   const [imagePreview, setImagePreview] = useState(null);
   const isYoung = YOUNG_LEVELS.includes(level.level);
   const chatEndRef = useRef(null);
+  const shouldScrollRef = useRef(true); // default true for initial load
   const fileInputRef = useRef(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -550,7 +551,10 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
   }, [subject.name, token, onLogout]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (shouldScrollRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      shouldScrollRef.current = false;
+    }
   }, [history, status]);
 
   const handleImageUpload = (e) => {
@@ -586,6 +590,7 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
       imagePreview: imageBase64 ? imagePreview : null,
       timestamp: new Date().toISOString() 
     }];
+    shouldScrollRef.current = true;
     setHistory(tempHistory);
     
     const payloadImage = imageBase64;
