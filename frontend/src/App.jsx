@@ -177,7 +177,7 @@ function Auth({ onAuthSuccess }) {
       if (err.response && err.response.data && err.response.data.detail) {
         setError(err.response.data.detail);
       } else {
-        setError('Network error. Please try again.');
+        setError('Network error. If you are on a school/work network, the server might be blocked. Try disabling your VPN, adblocker, or use a different network.');
       }
     } finally {
       setLoading(false);
