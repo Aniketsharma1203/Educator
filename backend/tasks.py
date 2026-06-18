@@ -22,6 +22,8 @@ POWER_MODEL  = "Llama-3.3-70B-Instruct"
 VISION_MODEL = "gpt-4o"
 # Coding model: gpt-4o — best for programming and algorithms
 CODING_MODEL = "gpt-4o"
+# Agriculture model: Mistral-large-2407 — great general knowledge, diversifies API usage
+AGRI_MODEL = "Mistral-large-2407"
 
 # Keywords that signal a HARD question requiring deep reasoning
 HARD_KEYWORDS = [
@@ -81,6 +83,7 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
     Routing logic:
     - Image provided → gpt-4o (Vision)
     - Subject Coding → gpt-4o (Coding)
+    - Subject Agriculture → Mistral-large-2407 (Agri)
     - Hard question   → Llama-3.3-70B-Instruct (Power)
     - Easy question   → gpt-4o-mini (Fast, higher rate limits)
     """
@@ -105,6 +108,12 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
             ]
         elif subject and subject.lower() == "coding":
             model = CODING_MODEL
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        elif subject and subject.lower() == "agriculture":
+            model = AGRI_MODEL
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}

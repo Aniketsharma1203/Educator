@@ -226,6 +226,7 @@ body {
 .subject-card.gk      { --card-gradient: linear-gradient(135deg, var(--gk-start), var(--gk-end)); background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.2); }
 .subject-card.finance { --card-gradient: linear-gradient(135deg, #065f46, #10b981); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
 .subject-card.coding  { --card-gradient: linear-gradient(135deg, #9333ea, #ec4899); background: rgba(236,72,153,0.08); border-color: rgba(236,72,153,0.2); }
+.subject-card.agri    { --card-gradient: linear-gradient(135deg, #84cc16, #eab308); background: rgba(132,204,22,0.08); border-color: rgba(132,204,22,0.2); }
 
 .subject-icon {
   font-size: 3rem;
@@ -249,6 +250,7 @@ body {
 .subject-card.gk h2      { color: #60a5fa; }
 .subject-card.finance h2 { color: #34d399; }
 .subject-card.coding h2  { color: #f472b6; }
+.subject-card.agri h2    { color: #bef264; }
 
 .subject-card p {
   font-size: 0.9rem;

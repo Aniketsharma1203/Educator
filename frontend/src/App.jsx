@@ -17,6 +17,7 @@ const SUBJECTS = [
   { id: 'general knowledge', name: 'General Knowledge', cls: 'gk', icon: '🌍', desc: 'History, geography, culture and everything that makes our world.', topics: ['History', 'Geography', 'Civics', 'Current Affairs', 'Philosophy'] },
   { id: 'finance', name: 'Finance', cls: 'finance', icon: '💰', desc: 'Accounting, valuation, derivatives and everything for CA & CFA students.', topics: ['Financial Accounting', 'Valuation', 'Derivatives', 'Corporate Finance', 'Risk Management', 'Taxation', 'Auditing', 'IFRS / GAAP'] },
   { id: 'coding', name: 'Coding', cls: 'coding', icon: '💻', desc: 'Python, Web Dev, Algorithms & Data Structures.', topics: ['Python', 'JavaScript', 'Data Structures', 'Algorithms', 'Databases'] },
+  { id: 'agriculture', name: 'Agriculture', cls: 'agri', icon: '🌾', desc: 'Farming, soil science, horticulture, and sustainable agriculture.', topics: ['Agronomy', 'Soil Science', 'Horticulture', 'Agribusiness', 'Sustainability'] },
 ];
 
 const TIERS = [

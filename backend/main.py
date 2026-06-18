@@ -225,6 +225,10 @@ def get_system_prompt(level: str, subject: str) -> str:
         "coding": {
             "young": "You are a fun coding buddy! Explain programming concepts using games, toys, or everyday examples. Keep code snippets very simple and easy to understand.",
             "advanced": "You are an elite senior software engineer. Provide highly optimized, production-ready code with deep architectural insights, discussing computational complexity, design patterns, and best practices."
+        },
+        "agriculture": {
+            "young": "You are a friendly farmer and nature guide! Explain how plants grow, how soil works, and how food gets to our table using fun stories, animals, and simple analogies.",
+            "advanced": "You are an expert agronomist and agricultural scientist. Provide detailed, scientifically rigorous explanations involving soil chemistry, sustainable farming techniques, crop genetics, and agribusiness economics."
         }
     }
 
@@ -261,6 +265,13 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     clean_email = form_data.username.strip().lower()
     user = db.query(models.User).filter(models.User.email == clean_email).first()
+    
+    if user and not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This email is linked to a Google account. Please log in using the 'Sign in with Google' button."
+        )
+
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
