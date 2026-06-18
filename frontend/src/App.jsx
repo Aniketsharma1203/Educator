@@ -326,6 +326,24 @@ function ClassSelector({ subject, onSelect, onBack }) {
   );
 }
 
+/* ─── Shared Components ────────────────────────────────────────────────── */
+const CopyButton = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button className="copy-btn" onClick={handleCopy} title="Copy" style={{
+      background: 'transparent', border: 'none', color: copied ? '#34d399' : 'rgba(255,255,255,0.4)',
+      cursor: 'pointer', padding: '4px', fontSize: '1.2rem', transition: 'all 0.2s', float: 'right'
+    }}>
+      {copied ? '✅' : '📋'}
+    </button>
+  );
+};
+
 /* ─── Screen 3: Chat ─────────────────────────────────────────────────── */
 function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQuiz }) {
   const [question, setQuestion] = useState('');
@@ -339,6 +357,35 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
   const isYoung = YOUNG_LEVELS.includes(level.level);
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const exportPDF = () => {
+    setShowExportMenu(false);
+    window.print();
+  };
+
+  const exportWord = () => {
+    setShowExportMenu(false);
+    const historyHTML = history.map(msg => 
+      `<p><strong>${msg.role === 'user' ? 'You' : 'OmniTutor'}:</strong><br/>${msg.content.replace(/\n/g, '<br/>')}</p>`
+    ).join('<hr/>');
+    const exportHTML = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>OmniTutor Export</title></head><body><h1>OmniTutor Study Notes - ${subject.name}</h1>${historyHTML}</body></html>`;
+    const blob = new Blob(['\ufeff', exportHTML], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `OmniTutor-Notes-${subject.name}.doc`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+
+  const exportMarkdown = () => {
+    setShowExportMenu(false);
+    const mdText = history.map(msg => `### ${msg.role === 'user' ? 'You' : 'OmniTutor'}\n${msg.content}\n`).join('\n---\n\n');
+    const blob = new Blob([`# OmniTutor Study Notes - ${subject.name}\n\n${mdText}`], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `OmniTutor-Notes-${subject.name}.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
 
   const fetchProfile = async () => {
     try {
@@ -473,7 +520,26 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
             </button>
           </div>
         )}
-        <div style={{ display: 'flex', gap: '0.5rem', marginLeft: isYoung && profile ? '0.5rem' : 'auto' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginLeft: isYoung && profile ? '0.5rem' : 'auto', position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="back-btn"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}
+            >
+              📥 Export
+            </button>
+            {showExportMenu && (
+              <div className="export-dropdown glass-panel" style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', padding: '0.5rem',
+                display: 'flex', flexDirection: 'column', gap: '0.25rem', zIndex: 100, minWidth: '160px'
+              }}>
+                <button onClick={exportPDF} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>📄 Save as PDF</button>
+                <button onClick={exportWord} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>📝 Word (.doc)</button>
+                <button onClick={exportMarkdown} style={{ background:'transparent', border:'none', color:'var(--text-main)', textAlign:'left', padding:'0.6rem 0.8rem', borderRadius:'6px', cursor:'pointer', fontWeight: 500 }} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.1)'} onMouseOut={e=>e.target.style.background='transparent'}>⬇️ Markdown (.md)</button>
+              </div>
+            )}
+          </div>
           <button
             className="back-btn"
             onClick={onQuiz}
@@ -501,9 +567,9 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
         </div>
       )}
 
-      <div className="glass-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }}>
+      <div className="chat-container glass-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }}>
         
-        <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div className="chat-history" style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {history.length === 0 && status === 'idle' && (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>
               <span style={{ fontSize: '3rem', opacity: 0.5 }}>{subject.icon}</span>
@@ -512,13 +578,14 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
           )}
 
           {history.map((msg, i) => (
-            <div key={i} style={{ 
+            <div key={i} className="message" style={{ 
               alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
               background: msg.role === 'user' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(255, 255, 255, 0.05)',
               border: msg.role === 'user' ? '1px solid rgba(34, 211, 238, 0.2)' : '1px solid rgba(255, 255, 255, 0.1)',
               padding: '1rem',
               borderRadius: '12px',
               maxWidth: '85%',
+              width: msg.role === 'assistant' ? '100%' : 'auto',
             }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {msg.role === 'user' ? 'You' : 'OmniTutor'}
@@ -543,6 +610,7 @@ function Chat({ subject, level, token, onBack, onLogout, onBadgesUnlocked, onQui
                    : '🧠 Power'}
                   </span>
                 )}
+                {msg.role === 'assistant' && <CopyButton text={msg.content} />}
               </div>
               {/* Show uploaded image if present */}
               {msg.imagePreview && (

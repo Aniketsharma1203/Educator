@@ -836,3 +836,34 @@ textarea.input-field { resize: vertical; min-height: 120px; }
   .bar-label { min-width: 90px; font-size: 0.74rem; }
   .stats-page { padding: 1.5rem 1rem 4rem; }
 }
+
+/* ─── Print Styles for Export ──────────────────────────────────────── */
+@media print {
+  body { background: white !important; color: black !important; }
+  .stars, .nav, .chat-header-card, .chat-input-wrapper, .scroll-btn, .export-dropdown, .copy-btn {
+    display: none !important;
+  }
+  .app, .page, .chat-page, .chat-container {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .chat-history {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .message {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    background: white !important;
+    color: black !important;
+  }
+  .markdown-body { color: black !important; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: black !important; border-bottom-color: #ccc !important; }
+  .markdown-body pre { background: #f8f9fa !important; border-color: #ddd !important; color: black !important; }
+  .markdown-body code { color: #d63384 !important; background: transparent !important; }
+}
