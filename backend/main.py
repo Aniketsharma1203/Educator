@@ -583,8 +583,14 @@ Generate all {req.count} questions now."""
 
     raw, _ = await run_inference(prompt, "You are an expert quiz generator. Return only valid JSON.", None, subject=req.subject)
 
-    # Strip any markdown code fences if the model added them
-    cleaned = _re.sub(r"```(?:json)?|```", "", raw).strip()
+    # Find the first '{' and last '}' to extract just the JSON object
+    start_idx = raw.find('{')
+    end_idx = raw.rfind('}')
+    if start_idx != -1 and end_idx != -1:
+        cleaned = raw[start_idx:end_idx+1]
+    else:
+        cleaned = raw
+        
     try:
         data = json.loads(cleaned)
         return {"questions": data["questions"]}
@@ -697,12 +703,11 @@ async def generate_flashcards(req: FlashcardCreateRequest, current_user: models.
 
     try:
         content, _ = await run_inference(user_prompt, system_prompt, None, subject=req.subject)
-        content = content.strip()
-        
-        if content.startswith("```json"):
-            content = content[7:-3]
-        elif content.startswith("```"):
-            content = content[3:-3]
+        # Find the first '[' and last ']' to extract just the JSON array
+        start_idx = content.find('[')
+        end_idx = content.rfind(']')
+        if start_idx != -1 and end_idx != -1:
+            content = content[start_idx:end_idx+1]
         
         cards_data = json.loads(content)
         
