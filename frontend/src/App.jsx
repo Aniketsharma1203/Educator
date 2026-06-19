@@ -1442,6 +1442,60 @@ function Quiz({ subject, level, token, onBack, onBadgesUnlocked }) {
   );
 }
 
+/* ─── Screen 6: History Dashboard ────────────────────────────────────── */
+function HistoryDashboard({ token, onBack, onGoToChat }) {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    axios.get(`${API}/api/history/questions`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => setQuestions(res.data))
+      .catch(err => setError('Failed to load history.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="flashcards-page page">
+      <div className="flashcards-page-header">
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        <div>
+          <h1 className="flashcards-page-title">🕒 Your Question History</h1>
+          <p className="flashcards-page-sub">Review the last 20 questions you asked across all subjects</p>
+        </div>
+      </div>
+
+      {loading && <div className="loader" style={{ marginTop: '4rem' }}><div className="spinner-ring" /><p>Loading history…</p></div>}
+      {error && <div className="error-msg" style={{ margin: '2rem auto', maxWidth: '600px' }}>{error}</div>}
+
+      {!loading && !error && questions.length === 0 && (
+        <div style={{ textAlign: 'center', marginTop: '4rem', color: 'var(--text-muted)' }}>
+          <p>You haven't asked any questions yet!</p>
+        </div>
+      )}
+
+      {!loading && !error && questions.length > 0 && (
+        <div className="flashcard-decks-grid" style={{ gridTemplateColumns: '1fr', maxWidth: '800px', margin: '0 auto' }}>
+          {questions.map((q) => (
+            <div key={q.id} className="deck-card" onClick={() => onGoToChat(q.subject, null)}>
+              <div className="deck-card-header">
+                <h3>{q.subject}</h3>
+                <span className="deck-count">{new Date(q.timestamp).toLocaleString()}</span>
+              </div>
+              <p style={{ color: 'var(--text-light)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                "{q.content.length > 100 ? q.content.substring(0, 100) + '...' : q.content}"
+              </p>
+              <button className="btn-start" style={{ marginTop: '1rem', width: 'auto', padding: '0.5rem 1rem' }}>
+                Go to Chat →
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
@@ -1519,10 +1573,18 @@ export default function App() {
   const openStats    = () => navigate(view === 'stats' ? (token ? 'dashboard' : 'auth') : 'stats', subject, level);
   const openAdmin    = () => navigate(view === 'admin' ? 'dashboard' : 'admin', subject, level);
   const openFlashcards = () => navigate('flashcards', subject, level);
+  const openHistory  = () => navigate('history', subject, level);
   
   const navigateToChat = (subjectName, levelName) => {
     const s = SUBJECTS.find(sub => sub.name === subjectName);
     if (!s) return;
+    
+    // If we don't have a level (e.g. coming from Global History), just take them to Class Selector
+    if (!levelName) {
+      navigate('classSelector', s, null);
+      return;
+    }
+
     let foundLevel = null;
     for (const tier of TIERS) {
       const l = tier.classes.find(c => c.name === levelName);
@@ -1550,7 +1612,7 @@ export default function App() {
       <Stars />
       <BadgePopup badges={badgePopup} onClose={() => setBadgePopup([])} />
       <div className="app">
-        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onAdmin={openAdmin} onLogout={handleLogout} user={user} profile={profile} />
+        <Nav view={view} subject={subject} level={level} onLogoClick={goHome} onStats={openStats} onAdmin={openAdmin} onHistory={openHistory} onLogout={handleLogout} user={user} profile={profile} />
         
         {view === 'auth' && !token && <Auth onAuthSuccess={handleAuthSuccess} />}
         
@@ -1560,6 +1622,7 @@ export default function App() {
         {view === 'chat'          && token && subject && level && <Chat subject={subject} level={level} token={token} onBack={backToClasses} onLogout={handleLogout} onBadgesUnlocked={setBadgePopup} onQuiz={goToQuiz} onViewFlashcards={openFlashcards} />}
         {view === 'quiz'          && token && subject && level && <Quiz subject={subject} level={level} token={token} onBack={backToChat} onBadgesUnlocked={setBadgePopup} />}
         
+        {view === 'history'       && token && <HistoryDashboard token={token} onBack={goHome} onGoToChat={navigateToChat} />}
         {view === 'stats'         && <StatsDashboard onBack={goHome} />}
         {view === 'admin'         && token && user?.is_admin && <AdminDashboard onBack={goHome} token={token} />}
       </div>

@@ -142,6 +142,12 @@ class ChatMessageResponse(BaseModel):
     content: str
     timestamp: datetime
 
+class PastQuestionResponse(BaseModel):
+    id: int
+    subject: str
+    content: str
+    timestamp: datetime
+
 class FlashcardCreateRequest(BaseModel):
     subject: str
     topic: str
@@ -554,7 +560,25 @@ def get_admin_stats(current_user: models.User = Depends(get_current_user), db: S
         })
     return {"users": user_stats}
 
-# ── Quiz Endpoints ─────────────────────────────────────────────────────────────
+@app.get("/api/history/questions", response_model=List[PastQuestionResponse])
+def get_global_questions_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    messages = db.query(models.ChatMessage)\
+        .filter(models.ChatMessage.user_id == current_user.id)\
+        .filter(models.ChatMessage.role == 'user')\
+        .order_by(models.ChatMessage.timestamp.desc())\
+        .limit(20).all()
+    
+    return [
+        PastQuestionResponse(
+            id=msg.id,
+            subject=msg.subject,
+            content=msg.content,
+            timestamp=msg.timestamp
+        )
+        for msg in messages
+    ]
+
+# ── Quiz Generation & Submission ─────────────────────────────────────────────────────────────
 
 import json, re as _re
 
