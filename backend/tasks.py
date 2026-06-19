@@ -142,14 +142,32 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
                 {"role": "user", "content": prompt}
             ]
 
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4096
-        )
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=4096
+            )
+            return response.choices[0].message.content, model
+        except Exception as primary_err:
+            primary_error_msg = str(primary_err)
+            # Fallback sequence: try other reliable models
+            fallback_models = ["gpt-4o-mini", "gpt-4o", "Llama-3.3-70B-Instruct"]
+            if model in fallback_models:
+                fallback_models.remove(model)
+            
+            for fb_model in fallback_models:
+                try:
+                    response = await client.chat.completions.create(
+                        model=fb_model,
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=4096
+                    )
+                    return response.choices[0].message.content, fb_model
+                except Exception:
+                    continue
+            
+            return f"Error during inference: {primary_error_msg}. (All fallback models also failed.)", "unknown"
 
-        return response.choices[0].message.content, model
-
-    except Exception as e:
-        return f"Error during inference: {str(e)}", "unknown"
