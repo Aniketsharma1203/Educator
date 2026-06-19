@@ -71,6 +71,16 @@ def check_signup_rate_limit(ip: str):
         raise HTTPException(status_code=429, detail="Too many signups. Please try again in 10 minutes.")
     SIGNUP_RATES[ip].append(now)
 
+GLOBAL_AI_RATES = {}
+
+def check_global_ai_rate_limit(user_id: int):
+    now = datetime.utcnow()
+    # clean up old timestamps
+    GLOBAL_AI_RATES[user_id] = [t for t in GLOBAL_AI_RATES.get(user_id, []) if now - t < timedelta(minutes=1)]
+    if len(GLOBAL_AI_RATES[user_id]) >= 5:
+        raise HTTPException(status_code=429, detail="Global AI rate limit exceeded. You can only make 5 requests per minute across the whole app.")
+    GLOBAL_AI_RATES[user_id].append(now)
+
 # Pydantic Schemas
 class UserCreate(BaseModel):
     email: EmailStr
@@ -374,19 +384,7 @@ async def submit_query(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Rate Limiting Check: Max 3 questions in the last 60 seconds
-    one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
-    recent_questions = db.query(models.ChatMessage)\
-        .filter(models.ChatMessage.user_id == current_user.id)\
-        .filter(models.ChatMessage.role == 'user')\
-        .filter(models.ChatMessage.timestamp >= one_minute_ago)\
-        .count()
-    
-    if recent_questions >= 3:
-        raise HTTPException(
-            status_code=429, 
-            detail="Rate limit exceeded. You can only ask 3 questions per minute."
-        )
+    check_global_ai_rate_limit(current_user.id)
 
     # 2. Fetch past memory (last 10 questions) for this specific subject
     past_messages = db.query(models.ChatMessage)\
@@ -555,6 +553,7 @@ class QuizSubmitRequest(BaseModel):
 
 @app.post("/api/quiz/generate")
 async def generate_quiz(req: QuizGenerateRequest, current_user: models.User = Depends(get_current_user)):
+    check_global_ai_rate_limit(current_user.id)
     type_map = {
         "mcq":        "multiple choice (4 options labelled A, B, C, D)",
         "true_false": "True/False (boolean)",
@@ -718,6 +717,7 @@ def get_quiz_history(current_user: models.User = Depends(get_current_user), db: 
 
 @app.post("/api/flashcards/generate")
 async def generate_flashcards(req: FlashcardCreateRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    check_global_ai_rate_limit(current_user.id)
     system_prompt = "You are an expert tutor creating study materials. Return exactly 5 flashcards based on the provided topic and chat history. Output pure JSON format: a list of objects with 'front' (question/concept) and 'back' (answer/explanation). Example: [{\"front\": \"What is X?\", \"back\": \"X is Y\"}]. Return ONLY JSON, no markdown blocks."
     user_prompt = f"Topic: {req.topic}\n\nContext/Chat History:\n{req.history_context}"
 
