@@ -66,9 +66,9 @@ SIGNUP_RATES = {}
 def check_signup_rate_limit(ip: str):
     now = datetime.utcnow()
     # clean up old timestamps
-    SIGNUP_RATES[ip] = [t for t in SIGNUP_RATES.get(ip, []) if now - t < timedelta(minutes=1)]
+    SIGNUP_RATES[ip] = [t for t in SIGNUP_RATES.get(ip, []) if now - t < timedelta(minutes=10)]
     if len(SIGNUP_RATES[ip]) >= 3:
-        raise HTTPException(status_code=429, detail="Too many signups. Please try again in a minute.")
+        raise HTTPException(status_code=429, detail="Too many signups. Please try again in 10 minutes.")
     SIGNUP_RATES[ip].append(now)
 
 # Pydantic Schemas
@@ -277,9 +277,15 @@ def root():
     track("visits")
     return {"status": "ok", "message": "OmniTutor API"}
 
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 @app.post("/api/auth/signup", response_model=UserResponse)
 def signup(user: UserCreate, request: Request, db: Session = Depends(get_db)):
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     check_signup_rate_limit(client_ip)
     
     clean_email = user.email.strip().lower()
