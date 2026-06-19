@@ -1,7 +1,7 @@
 import os
 import asyncio
 from datetime import datetime, timedelta, date
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
@@ -60,6 +60,16 @@ def track(key: str, amount: int = 1):
 
 def get_counter(key: str) -> int:
     return STATS.get(key, 0)
+
+SIGNUP_RATES = {}
+
+def check_signup_rate_limit(ip: str):
+    now = datetime.utcnow()
+    # clean up old timestamps
+    SIGNUP_RATES[ip] = [t for t in SIGNUP_RATES.get(ip, []) if now - t < timedelta(minutes=1)]
+    if len(SIGNUP_RATES[ip]) >= 3:
+        raise HTTPException(status_code=429, detail="Too many signups. Please try again in a minute.")
+    SIGNUP_RATES[ip].append(now)
 
 # Pydantic Schemas
 class UserCreate(BaseModel):
@@ -268,7 +278,10 @@ def root():
     return {"status": "ok", "message": "OmniTutor API"}
 
 @app.post("/api/auth/signup", response_model=UserResponse)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
+def signup(user: UserCreate, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    check_signup_rate_limit(client_ip)
+    
     clean_email = user.email.strip().lower()
     db_user = db.query(models.User).filter(models.User.email == clean_email).first()
     if db_user:
