@@ -300,6 +300,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    track("visits")
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -325,6 +326,7 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(user)
             
+        track("visits")
         access_token = create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}
     except ValueError:
@@ -454,7 +456,6 @@ async def submit_query(
 
 @app.get("/api/stats")
 def get_stats():
-    track("visits")
     return {
         "visits": get_counter("visits"),
         "questions": {
