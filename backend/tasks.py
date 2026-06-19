@@ -171,3 +171,6 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
             
             return f"Error during inference: {primary_error_msg}. (All fallback models also failed.)", "unknown"
 
+    except Exception as e:
+        return f"Error during inference: {str(e)}", "unknown"
+
