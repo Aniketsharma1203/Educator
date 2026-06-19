@@ -127,6 +127,12 @@ async def run_inference(prompt: str, system_prompt: str, image_base64: str = Non
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ]
+        elif subject and subject.lower() in ["homework", "homework helper"]:
+            model = FAST_MODEL
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
         else:
             # Text route: classify difficulty and pick appropriate model
             difficulty = classify_difficulty(prompt)

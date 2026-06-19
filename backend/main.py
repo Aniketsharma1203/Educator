@@ -46,6 +46,7 @@ STATS = {
     "questions:coding": 0,
     "questions:agri": 0,
     "questions:law": 0,
+    "questions:homework": 0,
     "questions:other": 0,
     "tier:school": 0,
     "tier:highschool": 0,
@@ -124,7 +125,9 @@ SUBJECT_KEYS = {
     "finance": "finance",
     "coding": "coding",
     "agriculture": "agri",
-    "law": "law"
+    "law": "law",
+    "homework helper": "homework",
+    "homework": "homework"
 }
 
 YOUNG_LEVELS = [
@@ -239,6 +242,14 @@ def get_system_prompt(level: str, subject: str) -> str:
         "law": {
             "young": "You are a friendly community helper explaining rules and laws! Explain things like fairness, rules, and how society works using simple examples from a playground or classroom.",
             "advanced": "You are a distinguished legal scholar and professor of Law. Provide highly accurate, logical, and structured explanations of legal concepts, statutes, and case law. Emphasize reasoning and avoid giving actionable legal advice. Use bolding and headers for clarity."
+        },
+        "homework helper": {
+            "young": "You are a supportive homework helper. NEVER give the direct answer right away. Instead, guide the student step-by-step. Ask them leading questions to help them figure it out on their own.",
+            "advanced": "You are an advanced academic tutor helping with complex assignments. Break down the methodology and provide structured guidance."
+        },
+        "homework": {
+            "young": "You are a supportive homework helper. NEVER give the direct answer right away. Instead, guide the student step-by-step. Ask them leading questions to help them figure it out on their own.",
+            "advanced": "You are an advanced academic tutor helping with complex assignments. Break down the methodology and provide structured guidance."
         }
     }
 
@@ -456,6 +467,7 @@ def get_stats():
             "coding": get_counter("questions:coding"),
             "agriculture": get_counter("questions:agri"),
             "law": get_counter("questions:law"),
+            "homework": get_counter("questions:homework"),
         },
         "tiers": {
             "school": get_counter("tier:school"),

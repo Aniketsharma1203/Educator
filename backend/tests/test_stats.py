@@ -34,21 +34,25 @@ def test_redis_tracking_directly():
     initial_agri = get_counter("questions:agri")
     initial_coding = get_counter("questions:coding")
     initial_law = get_counter("questions:law")
+    initial_homework = get_counter("questions:homework")
     
     # Simulate the tracking that happens in the query endpoint
     track("questions:agri")
     track("questions:coding")
     track("questions:law")
+    track("questions:homework")
     
     # Get updated counts
     new_agri = get_counter("questions:agri")
     new_coding = get_counter("questions:coding")
     new_law = get_counter("questions:law")
+    new_homework = get_counter("questions:homework")
     
     # Verify they incremented by 1
     assert new_agri == initial_agri + 1, "Agriculture stats did not increment"
     assert new_coding == initial_coding + 1, "Coding stats did not increment"
     assert new_law == initial_law + 1, "Law stats did not increment"
+    assert new_homework == initial_homework + 1, "Homework stats did not increment"
 
 def test_stats_endpoint_returns_new_subjects():
     """
@@ -61,3 +65,4 @@ def test_stats_endpoint_returns_new_subjects():
     assert "coding" in data["questions"], "Coding missing from stats response"
     assert "agriculture" in data["questions"], "Agriculture missing from stats response"
     assert "law" in data["questions"], "Law missing from stats response"
+    assert "homework" in data["questions"], "Homework missing from stats response"

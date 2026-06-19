@@ -19,6 +19,7 @@ const SUBJECTS = [
   { id: 'coding', name: 'Coding', cls: 'coding', icon: '💻', desc: 'Python, Web Dev, Algorithms & Data Structures.', topics: ['Python', 'JavaScript', 'Data Structures', 'Algorithms', 'Databases'] },
   { id: 'agriculture', name: 'Agriculture', cls: 'agri', icon: '🌾', desc: 'Farming, soil science, horticulture, and sustainable agriculture.', topics: ['Agronomy', 'Soil Science', 'Horticulture', 'Agribusiness', 'Sustainability'] },
   { id: 'law', name: 'Law', cls: 'law', icon: '⚖️', desc: 'Legal concepts, statutes, constitutional law, and fairness.', topics: ['Constitutional Law', 'Contracts', 'Criminal Law', 'Torts', 'Legal Logic'] },
+  { id: 'homework', name: 'Homework Helper', cls: 'homework', icon: '📝', desc: 'Get step-by-step guidance on your homework. (Upload a photo!)', topics: ['Math Problems', 'Science Questions', 'Essay Outlines', 'Reading Comprehension'] },
 ];
 
 const TIERS = [
@@ -876,6 +877,7 @@ function StatsDashboard({ onBack }) {
     { label: 'Coding',      icon: '💻', color: '#ec4899', value: stats.questions.coding || 0 },
     { label: 'Agriculture', icon: '🌾', color: '#bef264', value: stats.questions.agriculture || 0 },
     { label: 'Law',         icon: '⚖️', color: '#f87171', value: stats.questions.law || 0 },
+    { label: 'Homework',    icon: '📝', color: '#fb923c', value: stats.questions.homework || 0 },
   ] : [];
 
   const tierData = stats ? [
