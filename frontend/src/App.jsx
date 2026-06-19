@@ -210,6 +210,9 @@ function Auth({ onAuthSuccess }) {
           <span style={{ fontSize: '3rem' }}>🎓</span>
           <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
           <p style={{ color: 'var(--text-muted)' }}>{isLogin ? 'Login to continue your learning journey' : 'Sign up to start asking questions'}</p>
+          <div style={{ marginTop: '1.2rem', padding: '0.8rem', background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)', borderRadius: '8px', color: '#fbbf24', fontSize: '0.85rem', lineHeight: '1.4' }}>
+            Please sign up first. If you already did, sorry for that, but the app is getting better every day, so please log in again!
+          </div>
         </div>
 
         {error && <div style={{ background: '#ef444433', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #ef444466' }}>{error}</div>}
@@ -355,6 +358,9 @@ function FlashcardsDashboard({ token, onBack, onGoToChat }) {
 
 /* ─── Screen 1: Dashboard ────────────────────────────────────────────── */
 function Dashboard({ onSelect, onViewFlashcards }) {
+  const academicSubjects = SUBJECTS.filter(s => s.id !== 'homework');
+  const toolSubjects = SUBJECTS.filter(s => s.id === 'homework');
+
   return (
     <div className="page" style={{ position: 'relative' }}>
       <button onClick={onViewFlashcards} className="back-btn" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10, background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.4)' }}>
@@ -373,7 +379,21 @@ function Dashboard({ onSelect, onViewFlashcards }) {
       </div>
       <div className="section-title">Choose a Subject</div>
       <div className="subjects-grid">
-        {SUBJECTS.map(s => (
+        {academicSubjects.map(s => (
+          <div key={s.id} className={`subject-card ${s.cls}`} onClick={() => onSelect(s)}>
+            <div className="card-glow" />
+            <span className="subject-icon">{s.icon}</span>
+            <h2>{s.name}</h2>
+            <p>{s.desc}</p>
+            <div className="card-topics">{s.topics.map(t => <span key={t} className="topic-tag">{t}</span>)}</div>
+            <span className="card-arrow">→</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="section-title" style={{ marginTop: '2rem' }}>Student Tools</div>
+      <div className="subjects-grid">
+        {toolSubjects.map(s => (
           <div key={s.id} className={`subject-card ${s.cls}`} onClick={() => onSelect(s)}>
             <div className="card-glow" />
             <span className="subject-icon">{s.icon}</span>
