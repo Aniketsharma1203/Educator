@@ -9,6 +9,16 @@ import 'katex/dist/katex.min.css';
 
 const API = ''; // Using Vercel/Vite reverse proxy to bypass network blocks
 
+// Generate a persistent device fingerprint for rate limiting
+function getDeviceId() {
+  let id = localStorage.getItem('_device_id');
+  if (!id) {
+    id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('_device_id', id);
+  }
+  return id;
+}
+
 /* ─── Data ──────────────────────────────────────────────────────────── */
 const SUBJECTS = [
   { id: 'mathematics', name: 'Mathematics', cls: 'math', icon: '🔢', desc: 'From counting to complex analysis — master numbers at every level.', topics: ['Arithmetic', 'Algebra', 'Calculus', 'Linear Algebra', 'Topology'] },
@@ -180,7 +190,9 @@ function Auth({ onAuthSuccess }) {
         localStorage.setItem('token', res.data.access_token);
         onAuthSuccess(res.data.access_token);
       } else {
-        await axios.post(`${API}/api/auth/signup`, { email: email.trim().toLowerCase(), password });
+        await axios.post(`${API}/api/auth/signup`, { email: email.trim().toLowerCase(), password }, {
+          headers: { 'X-Device-Id': getDeviceId() }
+        });
         setIsLogin(true); // Switch to login after successful signup
         setError('Signup successful! Please login.');
       }
