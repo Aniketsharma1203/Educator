@@ -122,11 +122,11 @@ function BadgePopup({ badges, onClose }) {
 }
 
 /* ─── Navbar ─────────────────────────────────────────────────────────── */
-function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, user, profile }) {
+function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onHistory, onLogout, user, profile }) {
   return (
     <nav className="nav">
       <div className="nav-logo" onClick={onLogoClick}>✦ OmniTutor</div>
-      {view !== 'dashboard' && view !== 'stats' && view !== 'auth' && view !== 'admin' && (
+      {view !== 'dashboard' && view !== 'stats' && view !== 'auth' && view !== 'admin' && view !== 'history' && (
         <div className="breadcrumb">
           <span onClick={onLogoClick} style={{ cursor: 'pointer', opacity: 0.6 }}>Home</span>
           {subject && <><span className="sep">›</span><span>{subject.name}</span></>}
@@ -144,6 +144,9 @@ function Nav({ view, subject, level, onLogoClick, onStats, onAdmin, onLogout, us
             🛡️ Admin
           </button>
         )}
+        <button className={`stats-nav-btn ${view === 'history' ? 'active' : ''}`} onClick={onHistory} title="Question History">
+          🕒 History
+        </button>
         <button className={`stats-nav-btn ${view === 'stats' ? 'active' : ''}`} onClick={onStats} title="Analytics Dashboard">
           📊 Stats
         </button>
